@@ -21,7 +21,7 @@ export default function App() {
           </p>
         </div>
 
-        <Magnetic intensity={0.2} actionArea="global">
+        <Magnetic strength={0.2}>
           <Button 
             variant="primary" 
             size="lg" 
