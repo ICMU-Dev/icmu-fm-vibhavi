@@ -1,7 +1,7 @@
 import React from 'react';
-import { Button } from './components/motion/button/base';
+import { Button } from './components/motion/button/base.jsx';
 import { ChevronRight } from 'lucide-react';
-import { Magnetic } from './components/motion/magnetic';
+import { Magnetic } from './components/motion/magnetic.jsx';
 
 export default function App() {
   return (
