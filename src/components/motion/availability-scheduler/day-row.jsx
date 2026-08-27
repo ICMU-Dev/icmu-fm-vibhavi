@@ -1,0 +1,193 @@
+"use client";
+
+import { Plus, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useRef, useState } from "react";
+import { Switch } from "@/components/motion/switch";
+import { Tooltip } from "@/components/motion/tooltip";
+import { SPRING_LAYOUT } from "@/lib/ease";
+import { CopyMenu } from "./copy-menu";
+import { IconButton } from "./icon-button";
+import { TimeSelect } from "./time-select";
+import { clampRange, endOptions, panelKey, startOptions, toMinutes, toValue } from "./types";
+
+export function DayRow({
+  day,
+  label,
+  state,
+  options,
+  reduce,
+  elevated,
+  openPanel,
+  onChange,
+  onCopy,
+  onPanelOpenChange
+}) {
+  const idRef = useRef(0);
+  const nextId = () => `${day}-n${idRef.current++}`;
+  // Same rule one level down: ranges stack against each other inside the row.
+  const [openRangeId, setOpenRangeId] = useState(null);
+
+  const panelId = (rangeId, edge) =>
+    panelKey(day, rangeId, edge);
+
+  const onRangePanelOpenChange = (
+    rangeId,
+    id,
+    open,
+  ) => {
+    if (open) setOpenRangeId(rangeId);
+    onPanelOpenChange(id, open);
+  };
+
+  const setEnabled = (enabled) => {
+    if (enabled && state.ranges.length === 0) {
+      onChange({
+        enabled,
+        ranges: [{ id: nextId(), start: "09:00", end: "17:00" }],
+      });
+    } else {
+      onChange({ ...state, enabled });
+    }
+  };
+
+  const updateRange = (id, patch) => {
+    const changed = patch.start !== undefined ? "start" : "end";
+    onChange({
+      ...state,
+      ranges: state.ranges.map((r) => {
+        if (r.id !== id) return r;
+        const next = { ...r, ...patch };
+        return { ...next, ...clampRange(next.start, next.end, options, changed) };
+      }),
+    });
+  };
+
+  const addRange = () => {
+    const last = state.ranges[state.ranges.length - 1];
+    const start = last ? Math.min(toMinutes(last.end) + 60, 24 * 60 - 60) : 540;
+    onChange({
+      enabled: true,
+      ranges: [
+        ...state.ranges,
+        { id: nextId(), start: toValue(start), end: toValue(start + 60) },
+      ],
+    });
+  };
+
+  const removeRange = (id) => {
+    const ranges = state.ranges.filter((r) => r.id !== id);
+    // Removing the last slot marks the day unavailable.
+    onChange({ enabled: ranges.length > 0, ranges });
+  };
+
+  const actions = (
+    <>
+      <Tooltip content="Add time">
+        <IconButton label={`Add time range to ${label}`} reduce={reduce} onClick={addRange}>
+          <Plus className="h-4 w-4" />
+        </IconButton>
+      </Tooltip>
+      <CopyMenu fromLabel={label} reduce={reduce} onApply={onCopy} />
+    </>
+  );
+
+  return (
+    <motion.div
+      layout={reduce ? false : "position"}
+      transition={SPRING_LAYOUT}
+      style={{ zIndex: elevated ? 1 : undefined }}
+      className="relative flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:gap-4">
+      {/* toggle + label; actions ride along on mobile */}
+      <div
+        className="flex items-center justify-between sm:w-36 sm:shrink-0 sm:justify-start sm:pt-1">
+        <div className="flex items-center gap-2.5">
+          <Switch
+            checked={state.enabled}
+            onCheckedChange={setEnabled}
+            ariaLabel={`Toggle ${label} availability`}
+            className="scale-90" />
+          <span className="text-sm font-medium text-foreground">{label}</span>
+        </div>
+        <div className="flex items-center gap-1 sm:hidden">{actions}</div>
+      </div>
+
+      {/* ranges or unavailable */}
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <AnimatePresence initial={false} mode="popLayout">
+          {state.enabled ? (
+            state.ranges.map((r) => (
+              <motion.div
+                key={r.id}
+                layout={reduce ? false : "position"}
+                style={{ zIndex: openRangeId === r.id ? 1 : undefined }}
+                initial={
+                  reduce
+                    ? { opacity: 0 }
+                    : { opacity: 0, y: -6, filter: "blur(4px)" }
+                }
+                animate={
+                  reduce
+                    ? { opacity: 1 }
+                    : { opacity: 1, y: 0, filter: "blur(0px)" }
+                }
+                exit={
+                  reduce
+                    ? { opacity: 0 }
+                    : { opacity: 0, y: -4, filter: "blur(4px)" }
+                }
+                transition={SPRING_LAYOUT}
+                className="relative flex items-center gap-2">
+                <div className="min-w-0 flex-1 sm:max-w-[132px]">
+                  <TimeSelect
+                    value={r.start}
+                    options={startOptions(options, r.end, r.start)}
+                    onChange={(v) => updateRange(r.id, { start: v })}
+                    open={openPanel === panelId(r.id, "start")}
+                    onOpenChange={(open) =>
+                      onRangePanelOpenChange(r.id, panelId(r.id, "start"), open)
+                    } />
+                </div>
+                <span className="text-muted-foreground">–</span>
+                <div className="min-w-0 flex-1 sm:max-w-[132px]">
+                  <TimeSelect
+                    value={r.end}
+                    options={endOptions(options, r.start, r.end)}
+                    onChange={(v) => updateRange(r.id, { end: v })}
+                    open={openPanel === panelId(r.id, "end")}
+                    onOpenChange={(open) =>
+                      onRangePanelOpenChange(r.id, panelId(r.id, "end"), open)
+                    } />
+                </div>
+                <Tooltip content="Remove">
+                  <IconButton
+                    label="Remove time range"
+                    reduce={reduce}
+                    onClick={() => removeRange(r.id)}>
+                    <X className="h-4 w-4" />
+                  </IconButton>
+                </Tooltip>
+              </motion.div>
+            ))
+          ) : (
+            <motion.span
+              key="unavailable"
+              layout={reduce ? false : "position"}
+              initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
+              animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
+              transition={SPRING_LAYOUT}
+              className="py-1 text-sm text-muted-foreground sm:py-2">
+              Unavailable
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* actions (desktop) */}
+      <div className="hidden shrink-0 items-center gap-1 pt-0.5 sm:flex">
+        {actions}
+      </div>
+    </motion.div>
+  );
+}
