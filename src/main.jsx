@@ -5,7 +5,10 @@ import './index.css';
 import App from './App';
 import { StreamProvider } from './context/StreamContext';
 import { AudioProvider } from './context/AudioContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
+
 createRoot(document.getElementById('root')).render(<StrictMode>
+  <ErrorBoundary>
     <BrowserRouter>
       <StreamProvider>
         <AudioProvider>
@@ -13,4 +16,5 @@ createRoot(document.getElementById('root')).render(<StrictMode>
         </AudioProvider>
       </StreamProvider>
     </BrowserRouter>
-  </StrictMode>);
+  </ErrorBoundary>
+</StrictMode>);

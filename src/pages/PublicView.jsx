@@ -10,7 +10,7 @@ import { Logo } from '../components/Logo';
 import { motion, AnimatePresence } from "motion/react";
 
 export function PublicView() {
-    const { isBroadcasting } = useStream();
+    const { isBroadcasting, currentTrack } = useStream();
     const { audioRef, play, pause } = useAudio();
     const [isPlaying, setIsPlaying] = useState(false);
     const [isBuffering, setIsBuffering] = useState(false);
@@ -159,7 +159,16 @@ export function PublicView() {
           <div className="text-7xl font-bold font-heading text-foreground tracking-tighter drop-shadow-md">
              102.5
           </div>
-          <Heart className="w-6 h-6 text-primary mt-4 drop-shadow-[0_0_12px_rgba(var(--primary),0.6)] cursor-pointer hover:scale-110 transition-transform"/>
+          {currentTrack ? (
+              <div className="mt-4 justify-center flex items-center space-x-2 bg-background/50 backdrop-blur-sm rounded-full px-2 py-1.5 border border-border/10 max-w-[70%]">
+                 {currentTrack.cover && <img src={currentTrack.cover} alt="Cover" className="w-5 h-5 rounded-full object-cover shadow-sm" />}
+                 <marquee behavior="scroll" direction="left" style={{scrollAmount: 5}}><span className="flex items-center text-xs font-body text-muted-foreground uppercase tracking-widest">
+                    {currentTrack.artist ? `${currentTrack.artist} - ${currentTrack.title}` : currentTrack.title}
+                 </span></marquee>
+              </div>
+          ) : (
+              <Heart className="w-6 h-6 text-primary mt-4 drop-shadow-[0_0_12px_rgba(var(--primary),0.6)] cursor-pointer hover:scale-110 transition-transform"/>
+          )}
         </div>
 
         {/* Waveform Visualizer */}

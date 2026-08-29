@@ -6,18 +6,30 @@ import { StatefulButton } from '../components/motion/button/stateful';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/motion/tabs';
 import { AnimatedBadge } from '../components/motion/animated-badge';
 import { Label } from '../components/ui/label';
-import { Radio, Settings, Clock, AlertTriangle } from 'lucide-react';
+import { Radio, Settings, Clock, AlertTriangle, Heart } from 'lucide-react';
 import { CenterMorphModal, CenterMorphModalContent } from '../components/motion/center-morph-modal';
 import { Button } from '../components/motion/button/base';
 import { Logo } from '../components/Logo';
 
 export function AdminDashboard() {
-  const { streamUrl, setStreamUrl, connectionState, bitrate, bufferHealth, uptime, listenerCount, isBroadcasting, dbError, setDbError } = useStream();
+  const { streamUrl, setStreamUrl, connectionState, bitrate, bufferHealth, uptime, listenerCount, isBroadcasting, currentTrack, dbError, setDbError } = useStream();
   const [configUrl, setConfigUrl] = useState(streamUrl);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [saveState, setSaveState] = useState('idle');
   const [urlError, setUrlError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOffline = () => setIsOffline(true);
+    const handleOnline = () => setIsOffline(false);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []);
 
   // Sync hash routing
   useEffect(() => {
@@ -90,6 +102,18 @@ export function AdminDashboard() {
 
   return (
     <div className={`h-dvh w-full font-sans relative overflow-hidden flex flex-col items-center justify-center py-6 transition-colors duration-1000 ease-in-out ${isBroadcasting ? 'bg-accent/10' : 'bg-background'}`}>
+      
+      {/* Network Offline Overlay */}
+      {isOffline && (
+        <div className="absolute inset-0 z-100 bg-background/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
+          <AlertTriangle className="w-16 h-16 text-destructive mb-4 animate-pulse" />
+          <h2 className="text-2xl font-bold text-foreground mb-2 tracking-tight">Studio Disconnected</h2>
+          <p className="text-muted-foreground text-sm max-w-sm">
+            Your connection to the studio has been lost. The dashboard is locked until the network reconnects.
+          </p>
+        </div>
+      )}
+
       {/* Background Glow */}
       <div className={`absolute inset-0 bg-(image:--radialPrimaryAccent) pointer-events-none mix-blend-screen transition-all duration-1000 ease-in-out ${isBroadcasting ? 'opacity-30 scale-110' : 'opacity-[0.03] scale-100'}`} />
       
@@ -150,6 +174,16 @@ export function AdminDashboard() {
               
               <BroadcastButton disabled={!streamUrl} />
 
+               {currentTrack ? (
+              <div className="mt-4 justify-center flex items-center shadow-ultimate  space-x-2 bg-background/50 backdrop-blur-sm rounded-full px-2 py-1.5 border border-border/10 max-w-[70%]">
+                 {currentTrack.cover && <img src={currentTrack.cover} alt="Cover" className="w-5 h-5 rounded-full object-cover shadow-sm" />}
+                 <marquee behavior="scroll" direction="left" style={{scrollAmount: 5}}><span className="flex items-center text-xs font-body text-muted-foreground uppercase tracking-widest">
+                    {currentTrack.artist ? `${currentTrack.artist} - ${currentTrack.title}` : currentTrack.title}
+                 </span></marquee>
+              </div>
+          ) : (
+              <Heart className="w-6 h-6 text-primary mt-4 drop-shadow-[0_0_12px_rgba(var(--primary),0.6)] cursor-pointer hover:scale-110 transition-transform"/>
+          )}  
               {/* Vitals Footer using AnimatedBadge */}
               <div className="mt-8 w-full border-t border-border/20 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                  <div className="flex flex-col space-y-1.5 items-center">
@@ -157,7 +191,7 @@ export function AdminDashboard() {
                     <AnimatedBadge 
                       status={getStatusBadgeType(connectionState, isBroadcasting)} 
                       pulse={isBroadcasting && (connectionState === 'connecting' || connectionState === 'reconnecting')}
-                      className="uppercase tracking-widest"
+                      className="shadow-ultimate uppercase tracking-widest"
                       size="sm"
                     >
                       {isBroadcasting ? connectionState : 'Standby'}
@@ -169,7 +203,7 @@ export function AdminDashboard() {
                     <AnimatedBadge 
                       status={isBroadcasting ? (bufferHealth > 150 ? 'warning' : 'success') : 'neutral'} 
                       showIcon={false}
-                      size="sm"
+                      size="sm" className={"shadow-ultimate"}
                     >
                       {isBroadcasting ? `${bufferHealth} ms` : '--'}
                     </AnimatedBadge>
@@ -177,14 +211,14 @@ export function AdminDashboard() {
 
                  <div className="flex flex-col space-y-1.5 items-center">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Bitrate</span>
-                    <AnimatedBadge status={isBroadcasting ? 'info' : 'neutral'} showIcon={false} size="sm">
+                    <AnimatedBadge status={isBroadcasting ? 'info' : 'neutral'} showIcon={false} size="sm" className={"shadow-ultimate"}>
                       {isBroadcasting ? `${bitrate} kbps` : '--'}
                     </AnimatedBadge>
                  </div>
 
                  <div className="flex flex-col space-y-1.5 items-center">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Listeners</span>
-                    <AnimatedBadge status={isBroadcasting ? 'info' : 'neutral'} showIcon={false} contentKey={listenerCount} size="sm">
+                    <span className="text-[10px] font-bold uppercase  tracking-widest text-muted-foreground">Listeners</span>
+                    <AnimatedBadge status={isBroadcasting ? 'info' : 'neutral'} showIcon={false} contentKey={listenerCount} size="sm" className={"shadow-ultimate"}>
                       {isBroadcasting ? listenerCount : '--'}
                     </AnimatedBadge>
                  </div>
@@ -223,13 +257,16 @@ export function AdminDashboard() {
                 </p>
                 
                 <div className="pt-4">
-                  <button 
+                  <StatefulButton 
                       onClick={handleSaveClick}
-                      disabled={saveState === 'loading'}
+                      state={saveState}
+                      loadingText="Saving Configuration..."
+                      successText="Configuration Saved"
+                      disabled={configUrl === streamUrl}
                       className="w-full uppercase tracking-widest font-bold py-5 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                   >
-                      {saveState === 'loading' ? 'Saving Configuration...' : saveState === 'success' ? 'Configuration Saved' : 'Save Configuration'}
-                  </button>
+                      Save Configuration
+                  </StatefulButton>
                 </div>
               </div>
             </div>

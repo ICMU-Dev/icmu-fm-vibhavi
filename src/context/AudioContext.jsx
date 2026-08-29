@@ -10,10 +10,8 @@ export const AudioProvider = ({ children }) => {
     const location = useLocation();
     
     useEffect(() => {
-        if (!audioRef.current) {
-            const audio = new Audio();
-            audio.crossOrigin = "anonymous";
-            audioRef.current = audio;
+        if (audioRef.current) {
+            audioRef.current.crossOrigin = "anonymous";
         }
     }, []);
     
@@ -72,7 +70,15 @@ export const AudioProvider = ({ children }) => {
     }, [isBroadcasting, streamUrl, location.pathname]);
 
     const play = useCallback(() => {
-        if (audioRef.current && audioRef.current.src) {
+        if (audioRef.current && streamUrl) {
+            let finalUrl = streamUrl;
+            try {
+                const liveUrl = new URL(streamUrl);
+                liveUrl.searchParams.set('t', Date.now().toString());
+                finalUrl = liveUrl.toString();
+            } catch(e) { }
+            
+            audioRef.current.src = finalUrl;
             audioRef.current.volume = 0;
             audioRef.current.play().then(() => {
                 if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
@@ -87,7 +93,7 @@ export const AudioProvider = ({ children }) => {
                 }, 50);
             }).catch(e => console.error(e));
         }
-    }, []);
+    }, [streamUrl]);
 
     const pause = useCallback(() => {
         if (audioRef.current && !audioRef.current.paused) {
@@ -98,7 +104,10 @@ export const AudioProvider = ({ children }) => {
                 if (vol <= 0) {
                     vol = 0;
                     clearInterval(fadeIntervalRef.current);
-                    if (audioRef.current) audioRef.current.pause();
+                    if (audioRef.current) {
+                        audioRef.current.pause();
+                        audioRef.current.src = ''; // Disconnect stream to drop old buffer
+                    }
                 }
                 if (audioRef.current) audioRef.current.volume = Math.max(0, vol);
             }, 50);
@@ -153,6 +162,7 @@ export const AudioProvider = ({ children }) => {
         }
     };
     return (<AudioContext.Provider value={{ audioRef, play, pause, setVolume }}>
+      <audio ref={audioRef} style={{ display: 'none' }} preload="none" playsInline />
       {children}
     </AudioContext.Provider>);
 };

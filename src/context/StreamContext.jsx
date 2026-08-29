@@ -13,6 +13,8 @@ export const StreamProvider = ({ children }) => {
     const [uptime, setUptime] = useState(0);
     const [listenerCount, setListenerCount] = useState(42);
     const [isBroadcastingState, setIsBroadcastingState] = useState(false);
+    const [startedAt, setStartedAt] = useState(null);
+    const [currentTrack, setCurrentTrack] = useState(null);
     const [schedule, setSchedule] = useState([]);
     const [dbError, setDbError] = useState(null);
     const [isInitializing, setIsInitializing] = useState(true);
@@ -72,7 +74,13 @@ export const StreamProvider = ({ children }) => {
                 }
                 if (broadcastData && broadcastData.value && broadcastData.value.length > 0) {
                     setIsBroadcastingState(broadcastData.value[0].isLive === true);
+                    if (broadcastData.value[0].startedAt) {
+                        setStartedAt(broadcastData.value[0].startedAt);
+                    }
                 }
+            } catch (err) {
+                console.error('Critical initialization error:', err);
+                setDbError(`Initialization failed: ${err.message}`);
             } finally {
                 setIsInitializing(false);
             }
@@ -99,8 +107,14 @@ export const StreamProvider = ({ children }) => {
                 if (payload.new.key === 'station_status') {
                     if (payload.new.value && payload.new.value.length > 0) {
                         setIsBroadcastingState(payload.new.value[0].isLive === true);
+                        if (payload.new.value[0].startedAt) {
+                            setStartedAt(payload.new.value[0].startedAt);
+                        } else {
+                            setStartedAt(null);
+                        }
                     } else {
                         setIsBroadcastingState(false);
+                        setStartedAt(null);
                     }
                 }
             })
@@ -129,18 +143,21 @@ export const StreamProvider = ({ children }) => {
         if (error) {
             console.error('Update stream link error:', error);
             setDbError(`Failed to update link: ${error.message}`);
-            throw error; // throw to UI
+            throw error;
         } else {
             setDbError(null);
         }
     };
 
-    // Intercept setIsBroadcasting to update Supabase
+    // Wrapper to update Supabase when toggling broadcast
     const setIsBroadcasting = async (isLive) => {
+        const timestamp = isLive ? Date.now() : null;
         setIsBroadcastingState(isLive);
+        setStartedAt(timestamp);
+
         const { error } = await supabase
             .from('fm-vibhavi')
-            .update({ value: [{ isLive: isLive }] })
+            .update({ value: [{ isLive: isLive, startedAt: timestamp }] })
             .eq('key', 'station_status');
             
         if (error) {
@@ -148,33 +165,81 @@ export const StreamProvider = ({ children }) => {
             setDbError(`Failed to update broadcast status: ${error.message}`);
             // Revert state if failed
             setIsBroadcastingState(!isLive);
+            setStartedAt(isLive ? null : Date.now()); // Fallback
         } else {
             setDbError(null);
         }
     };
 
-    // Mock telemetry loop when broadcasting
+    // Real Uptime loop
     const isBroadcasting = isBroadcastingState;
     useEffect(() => {
         let timer;
         if (isBroadcasting && streamUrl) {
-            setConnectionState('connecting');
-            // Mock connecting delay
-            setTimeout(() => setConnectionState('connected'), 1000);
+            setConnectionState('connected');
+            
             timer = setInterval(() => {
-                setUptime(prev => prev + 1);
-                setBufferHealth(Math.floor(Math.random() * 200) + 10); // 10ms - 210ms
-                setBitrate(128 + Math.floor(Math.random() * 4) - 2); // slight variance
-                setListenerCount(prev => Math.max(0, prev + Math.floor(Math.random() * 3) - 1));
+                if (startedAt) {
+                    setUptime(Math.floor((Date.now() - startedAt) / 1000));
+                } else {
+                    setUptime(prev => prev + 1); // fallback
+                }
+                
+                // Currently mocked until a radio server API is provided
+                setBufferHealth(100); 
+                setBitrate(128); 
+                // We keep a slight random fluctuation for aesthetic if no API is available
+                setListenerCount(prev => {
+                    const next = prev + Math.floor(Math.random() * 3) - 1;
+                    return next < 0 ? 0 : next;
+                });
             }, 1000);
-        }
-        else {
-            setConnectionState('idle');
+        } else {
+            setConnectionState('disconnected');
             setUptime(0);
             setBufferHealth(0);
+            setBitrate(0);
+            setListenerCount(0);
         }
         return () => clearInterval(timer);
-    }, [isBroadcasting, streamUrl]);
+    }, [isBroadcasting, streamUrl, startedAt]);
+
+    // Track metadata polling (RadioKing API support)
+    useEffect(() => {
+        let interval;
+        const fetchTrack = async () => {
+            if (!isBroadcastingState || !streamUrl) {
+                setCurrentTrack(null);
+                return;
+            }
+            try {
+                if (streamUrl.includes('radioking.io')) {
+                    const parts = streamUrl.split('/');
+                    const radioId = parts[parts.length - 1].split('?')[0];
+                    const res = await fetch(`https://api.radioking.io/widget/radio/${radioId}/track/current`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setCurrentTrack({
+                            title: data.title,
+                            artist: data.artist,
+                            cover: data.cover
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to fetch track data:", e);
+            }
+        };
+
+        if (isBroadcastingState) {
+            fetchTrack();
+            interval = setInterval(fetchTrack, 15000); // Poll every 15s
+        } else {
+            setCurrentTrack(null);
+        }
+
+        return () => clearInterval(interval);
+    }, [isBroadcastingState, streamUrl]);
 
     return (
         <StreamContext.Provider value={{
@@ -185,6 +250,7 @@ export const StreamProvider = ({ children }) => {
             uptime, listenerCount,
             isBroadcasting, setIsBroadcasting,
             schedule, setSchedule,
+            currentTrack,
             dbError, setDbError,
             isInitializing
         }}>

@@ -52,9 +52,9 @@ export function BroadcastButton({ disabled }) {
     }
 
     return (
-        <div className={`relative flex flex-col items-center justify-center space-y-4 ${disabled ? 'opacity-50 grayscale' : ''}`}>
+        <div className={`relative  flex flex-col items-center justify-center space-y-4 ${disabled ? 'opacity-50 grayscale' : ''}`}>
             <div className="relative flex items-center justify-center select-none touch-none rounded-full" onContextMenu={(e) => e.preventDefault()} style={{ WebkitTapHighlightColor: 'transparent' }}>
-                <svg width="200" height="200" className="transform -rotate-90 absolute">
+                <svg width="200" height="200" className="transform  -rotate-90 absolute">
                     {/* Background Ring */}
                     <circle cx="100" cy="100" r={radius} stroke="currentColor" strokeWidth="6" fill="transparent" className="text-border opacity-20"/>
                     {/* Progress Ring */}
@@ -63,7 +63,7 @@ export function BroadcastButton({ disabled }) {
                         stroke="currentColor" strokeWidth="6" fill="transparent" 
                         strokeDasharray={circumference} 
                         strokeDashoffset={strokeDashoffset} 
-                        className={`transition-[stroke-dashoffset] ${isHolding ? 'duration-[3000ms] ease-linear' : 'duration-500 ease-out'} ${isBroadcasting ? 'text-destructive' : 'text-primary'}`}
+                        className={`transition-[stroke-dashoffset] ${isHolding ? 'duration-3000  ease-linear' : 'duration-500 ease-out'} ${isBroadcasting ? 'text-destructive' : 'text-primary'}`}
                     />
                 </svg>
 
