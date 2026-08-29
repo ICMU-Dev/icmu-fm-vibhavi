@@ -1,7 +1,7 @@
-"use client";;
+"use client";
+;
 import { useMemo, useRef } from "react";
 import { isHoveringPointer } from "@/lib/touch";
-
 /**
  * Pairs a surface's enter with its leave, per pointer.
  *
@@ -25,20 +25,19 @@ import { isHoveringPointer } from "@/lib/touch";
  * out.
  */
 export function useHoverGesture() {
-  const contact = useRef(new Set());
-
-  return useMemo(() => ({
-    enter: (event) => {
-      if (isHoveringPointer(event)) {
-        contact.current.delete(event.pointerId);
-        return true;
-      }
-      contact.current.add(event.pointerId);
-      return false;
-    },
-    leave: (event) => {
-      const arrivedInContact = contact.current.delete(event.pointerId);
-      return !arrivedInContact && event.pointerType !== "touch";
-    },
-  }), []);
+    const contact = useRef(new Set());
+    return useMemo(() => ({
+        enter: (event) => {
+            if (isHoveringPointer(event)) {
+                contact.current.delete(event.pointerId);
+                return true;
+            }
+            contact.current.add(event.pointerId);
+            return false;
+        },
+        leave: (event) => {
+            const arrivedInContact = contact.current.delete(event.pointerId);
+            return !arrivedInContact && event.pointerType !== "touch";
+        },
+    }), []);
 }

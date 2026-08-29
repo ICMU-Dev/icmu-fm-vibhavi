@@ -1,6 +1,6 @@
-"use client";;
+"use client";
+;
 import { useMemo, useRef } from "react";
-
 /**
  * The pointer gesture behind a click, recorded where the click cannot report
  * it. A `click` carries no `pointerType` in the engines that matter, so the
@@ -27,19 +27,18 @@ import { useMemo, useRef } from "react";
  * on `onKeyDown`.
  */
 export function useTapGesture() {
-  const record = useRef(null);
-
-  return useMemo(() => ({
-    start: (event, state) => {
-      record.current = { pointerType: event.pointerType, state };
-    },
-    take: () => {
-      const spent = record.current;
-      record.current = null;
-      return spent;
-    },
-    drop: () => {
-      record.current = null;
-    },
-  }), []);
+    const record = useRef(null);
+    return useMemo(() => ({
+        start: (event, state) => {
+            record.current = { pointerType: event.pointerType, state };
+        },
+        take: () => {
+            const spent = record.current;
+            record.current = null;
+            return spent;
+        },
+        drop: () => {
+            record.current = null;
+        },
+    }), []);
 }
