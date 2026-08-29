@@ -20,28 +20,38 @@ export function PublicView() {
     const analyserRef = useRef(null);
     const sourceRef = useRef(null);
     const requestRef = useRef(null);
+    const lerpedHeightsRef = useRef(new Array(24).fill(0));
     const barsRef = useRef([]);
 
     // Sync isPlaying state with actual audio element state in case it pauses/plays outside React
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
-        const handlePlay = () => { setIsPlaying(true); setIsBuffering(false); };
-        const handlePause = () => setIsPlaying(false);
+        const handlePlay = () => { 
+            setIsPlaying(true);
+            setIsBuffering(audio.readyState < 3);
+        };
+        const handlePause = () => { setIsPlaying(false); setIsBuffering(false); };
         const handleWaiting = () => setIsBuffering(true);
         const handlePlaying = () => setIsBuffering(false);
+        const handleLoadStart = () => { if (isPlaying) setIsBuffering(true); };
+        const handleCanPlay = () => { if (isPlaying) setIsBuffering(false); };
         
         audio.addEventListener('play', handlePlay);
         audio.addEventListener('pause', handlePause);
         audio.addEventListener('waiting', handleWaiting);
         audio.addEventListener('playing', handlePlaying);
-        
-        setIsPlaying(!audio.paused && audio.src !== '');
+        audio.addEventListener('loadstart', handleLoadStart);
+        audio.addEventListener('canplay', handleCanPlay);
+
+        setIsPlaying(!audio.paused);
         return () => {
             audio.removeEventListener('play', handlePlay);
             audio.removeEventListener('pause', handlePause);
             audio.removeEventListener('waiting', handleWaiting);
             audio.removeEventListener('playing', handlePlaying);
+            audio.removeEventListener('loadstart', handleLoadStart);
+            audio.removeEventListener('canplay', handleCanPlay);
         };
     }, [audioRef]);
 
@@ -66,28 +76,30 @@ export function PublicView() {
 
     // Audio Visualizer Loop
     useEffect(() => {
-        if (isPlaying && audioRef.current) {
-            if (!audioCtxRef.current) {
-                try {
-                    const AudioContext = window.AudioContext || window.webkitAudioContext;
-                    audioCtxRef.current = new AudioContext();
-                    analyserRef.current = audioCtxRef.current.createAnalyser();
-                    analyserRef.current.fftSize = 64; // Gives us 32 bins
+        if (audioRef.current && isPlaying && !audioCtxRef.current) {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtxRef.current = new AudioContext();
+                analyserRef.current = audioCtxRef.current.createAnalyser();
+                analyserRef.current.fftSize = 64; // Gives us 32 bins
 
-                    sourceRef.current = audioCtxRef.current.createMediaElementSource(audioRef.current);
-                    sourceRef.current.connect(analyserRef.current);
-                    analyserRef.current.connect(audioCtxRef.current.destination);
-                } catch (e) {
-                    console.warn("Web Audio API setup failed or CORS restricted", e);
-                }
-            } else if (audioCtxRef.current.state === 'suspended') {
-                audioCtxRef.current.resume();
+                sourceRef.current = audioCtxRef.current.createMediaElementSource(audioRef.current);
+                sourceRef.current.connect(analyserRef.current);
+                analyserRef.current.connect(audioCtxRef.current.destination);
+            } catch (e) {
+                console.warn("Web Audio API setup failed or CORS restricted", e);
             }
+        }
+        
+        if (audioCtxRef.current && isPlaying && audioCtxRef.current.state === 'suspended') {
+            audioCtxRef.current.resume();
+        }
 
-            const updateLoop = () => {
-                let dataArray = new Uint8Array(24);
+        const updateLoop = () => {
+            let dataArray = new Uint8Array(24);
+            
+            if (isPlaying) {
                 let isAllZero = true;
-
                 if (analyserRef.current) {
                     const fullData = new Uint8Array(analyserRef.current.frequencyBinCount);
                     analyserRef.current.getByteFrequencyData(fullData);
@@ -95,35 +107,34 @@ export function PublicView() {
                     isAllZero = !dataArray.some(val => val > 0);
                 }
 
-                // If CORS blocks data (all zeros), fallback to a pseudo-random fluid animation
+                // If CORS blocks data (all zeros), fallback to a smooth, organic fluid animation
                 if (isAllZero || !analyserRef.current) {
-                    const time = Date.now() / 150;
+                    const time = Date.now() / 300;
                     for(let i=0; i<24; i++) {
-                        // Blend sine waves for a smooth bouncing effect
-                        dataArray[i] = (Math.sin(time + (i * 0.5)) * 40) + (Math.sin(time * 0.8 - i) * 20) + 80;
+                        const wave1 = Math.sin(time + (i * 0.3)) * 30;
+                        const wave2 = Math.cos(time * 0.7 - (i * 0.2)) * 25;
+                        const wave3 = Math.sin(time * 0.4 + i) * 15;
+                        dataArray[i] = Math.max(0, wave1 + wave2 + wave3 + 100);
                     }
                 }
+            }
 
-                // Directly mutate DOM heights to avoid 60fps React renders
-                barsRef.current.forEach((bar, i) => {
-                    if (bar) {
-                        const val = dataArray[i] || 10;
-                        const heightPercent = Math.max(8, (val / 255) * 100);
-                        bar.style.height = `${heightPercent}%`;
-                    }
-                });
-
-                requestRef.current = requestAnimationFrame(updateLoop);
-            };
+            // Smoothly interpolate (lerp) heights to remove jitter (runs at 60fps)
+            barsRef.current.forEach((bar, i) => {
+                if (bar) {
+                    const targetVal = dataArray[i] || 10;
+                    const targetPercent = Math.max(8, (targetVal / 255) * 100);
+                    
+                    lerpedHeightsRef.current[i] += (targetPercent - lerpedHeightsRef.current[i]) * 0.15;
+                    bar.style.height = `${lerpedHeightsRef.current[i]}%`;
+                }
+            });
 
             requestRef.current = requestAnimationFrame(updateLoop);
-        } else {
-            if (requestRef.current) cancelAnimationFrame(requestRef.current);
-            // Reset bars
-            barsRef.current.forEach(bar => {
-                if (bar) bar.style.height = '12px';
-            });
-        }
+        };
+
+        if (requestRef.current) cancelAnimationFrame(requestRef.current);
+        requestRef.current = requestAnimationFrame(updateLoop);
 
         return () => {
             if (requestRef.current) cancelAnimationFrame(requestRef.current);

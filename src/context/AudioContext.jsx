@@ -15,22 +15,12 @@ export const AudioProvider = ({ children }) => {
         }
     }, []);
     
-    // Update stream logic based on isBroadcasting state and route
     useEffect(() => {
         const isAdmin = location.pathname.includes('/admin');
         
         if (audioRef.current) {
             if (isBroadcasting && streamUrl && !isAdmin) {
-                // Appending a timestamp query param helps bypass browser caching for live streams
-                let finalUrl = streamUrl;
-                try {
-                    const liveUrl = new URL(streamUrl);
-                    liveUrl.searchParams.set('t', Date.now().toString());
-                    finalUrl = liveUrl.toString();
-                } catch(e) {
-                    // Invalid URL format for URL constructor, fallback to raw
-                }
-                audioRef.current.src = finalUrl;
+                audioRef.current.src = streamUrl;
                 audioRef.current.load();
                 audioRef.current.volume = 0;
                 audioRef.current.play().then(() => {
@@ -46,26 +36,17 @@ export const AudioProvider = ({ children }) => {
                 }).catch(e => console.warn("Autoplay prevented by browser:", e));
             }
             else {
-                if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
-                if (audioRef.current && !audioRef.current.paused && audioRef.current.volume > 0) {
+                if (audioRef.current && !audioRef.current.paused) {
                     let vol = audioRef.current.volume;
                     fadeIntervalRef.current = setInterval(() => {
                         vol -= 0.05;
                         if (vol <= 0) {
                             vol = 0;
                             clearInterval(fadeIntervalRef.current);
-                            if (audioRef.current) {
-                                audioRef.current.pause();
-                                audioRef.current.removeAttribute('src');
-                                audioRef.current.load();
-                            }
+                            if (audioRef.current) audioRef.current.pause();
                         }
                         if (audioRef.current) audioRef.current.volume = Math.max(0, vol);
                     }, 50);
-                } else {
-                    audioRef.current.pause();
-                    audioRef.current.removeAttribute('src');
-                    audioRef.current.load();
                 }
             }
         }
@@ -75,15 +56,10 @@ export const AudioProvider = ({ children }) => {
         if (audioRef.current && streamUrl) {
             if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
             
-            let finalUrl = streamUrl;
-            try {
-                const liveUrl = new URL(streamUrl);
-                liveUrl.searchParams.set('t', Date.now().toString());
-                finalUrl = liveUrl.toString();
-            } catch(e) { }
+            // Re-assign src and force load to dump the old buffer and jump to the live edge!
+            audioRef.current.src = streamUrl;
+            audioRef.current.load();
             
-            audioRef.current.src = finalUrl;
-            audioRef.current.load(); // Force browser to recognize new source
             audioRef.current.volume = 0;
             audioRef.current.play().then(() => {
                 let vol = 0;
@@ -95,7 +71,14 @@ export const AudioProvider = ({ children }) => {
                     }
                     if (audioRef.current) audioRef.current.volume = vol;
                 }, 50);
-            }).catch(e => console.error(e));
+            }).catch(e => {
+                console.error("Play failed, attempting reconnect:", e);
+                audioRef.current.src = streamUrl;
+                audioRef.current.load();
+                audioRef.current.play().then(() => {
+                    audioRef.current.volume = 1;
+                }).catch(err => console.error("Reconnect failed:", err));
+            });
         }
     }, [streamUrl]);
 
@@ -108,11 +91,7 @@ export const AudioProvider = ({ children }) => {
                 if (vol <= 0) {
                     vol = 0;
                     clearInterval(fadeIntervalRef.current);
-                    if (audioRef.current) {
-                        audioRef.current.pause();
-                        audioRef.current.removeAttribute('src'); // Properly disconnect
-                        audioRef.current.load(); // Flush the buffer
-                    }
+                    if (audioRef.current) audioRef.current.pause();
                 }
                 if (audioRef.current) audioRef.current.volume = Math.max(0, vol);
             }, 50);
@@ -152,14 +131,7 @@ export const AudioProvider = ({ children }) => {
         const handleOnline = () => {
             const isAdmin = location.pathname.includes('/admin');
             if (isBroadcasting && streamUrl && audioRef.current && !isAdmin) {
-                let finalUrl = streamUrl;
-                try {
-                    const liveUrl = new URL(streamUrl);
-                    liveUrl.searchParams.set('t', Date.now().toString());
-                    finalUrl = liveUrl.toString();
-                } catch(e) { }
-                
-                audioRef.current.src = finalUrl;
+                audioRef.current.src = streamUrl;
                 play();
             }
         };
