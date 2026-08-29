@@ -143,11 +143,11 @@ export function PublicView() {
         }
     };
 
-    return (<div className="flex flex-col items-center justify-center min-h-screen bg-background relative overflow-hidden font-sans">
+    return (<div className="flex flex-col items-center justify-center min-h-dvh bg-background relative overflow-hidden font-sans">
       {/* Dynamic Background Glow */}
       <div className="absolute inset-0 bg-(image:--radialPrimaryAccent) opacity-10 pointer-events-none mix-blend-screen"/>
       
-      <div className="w-full max-w-sm sm:max-w-md bg-card/40 backdrop-blur-3xl border-0 sm:border border-white/5 sm:border-border/30 sm:rounded-[2.5rem] shadow-2xl overflow-hidden h-dvh sm:h-[75vh] flex flex-col relative z-10">
+      <div className="w-full max-w-sm sm:max-w-md bg-card/40 backdrop-blur-3xl border-0 sm:border border-white/5 sm:border-border/30 sm:rounded-[2.5rem] shadow-2xl overflow-hidden h-dvh sm:h-[75dvh] flex flex-col relative z-10">
         
         {/* Top Nav */}
         <div className="flex justify-center items-center pt-8 pb-4">

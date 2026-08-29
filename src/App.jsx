@@ -10,8 +10,8 @@ function App() {
 
     if (isInitializing) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-background">
-                <Loader variant="spinner" size={48} className="text-primary" />
+            <div className="flex flex-col items-center justify-center min-h-dvh bg-background">
+                <Loader variant="spinner" size={48} className="text-primary drop-shadow-[0_0_12px_rgba(var(--primary),0.6)]" />
             </div>
         );
     }

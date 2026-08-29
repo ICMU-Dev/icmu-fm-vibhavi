@@ -151,7 +151,7 @@ export function AdminDashboard() {
               <BroadcastButton disabled={!streamUrl} />
 
               {/* Vitals Footer using AnimatedBadge */}
-              <div className="mt-8 w-full border-t border-border/20 pt-6 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div className="mt-8 w-full border-t border-border/20 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                  <div className="flex flex-col space-y-1.5 items-center">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Status</span>
                     <AnimatedBadge 
