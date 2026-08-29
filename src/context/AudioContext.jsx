@@ -6,7 +6,7 @@ const AudioContext = createContext(undefined);
 export const AudioProvider = ({ children }) => {
     const audioRef = useRef(null);
     const fadeIntervalRef = useRef(null);
-    const { streamUrl, isBroadcasting } = useStream();
+    const { streamUrl, isBroadcasting, currentTrack } = useStream();
     const location = useLocation();
     
     useEffect(() => {
@@ -31,9 +31,9 @@ export const AudioProvider = ({ children }) => {
                     // Invalid URL format for URL constructor, fallback to raw
                 }
                 audioRef.current.src = finalUrl;
+                audioRef.current.load();
                 audioRef.current.volume = 0;
                 audioRef.current.play().then(() => {
-                    if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
                     let vol = 0;
                     fadeIntervalRef.current = setInterval(() => {
                         vol += 0.05;
@@ -46,8 +46,8 @@ export const AudioProvider = ({ children }) => {
                 }).catch(e => console.warn("Autoplay prevented by browser:", e));
             }
             else {
+                if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
                 if (audioRef.current && !audioRef.current.paused && audioRef.current.volume > 0) {
-                    if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
                     let vol = audioRef.current.volume;
                     fadeIntervalRef.current = setInterval(() => {
                         vol -= 0.05;
@@ -56,14 +56,16 @@ export const AudioProvider = ({ children }) => {
                             clearInterval(fadeIntervalRef.current);
                             if (audioRef.current) {
                                 audioRef.current.pause();
-                                audioRef.current.src = '';
+                                audioRef.current.removeAttribute('src');
+                                audioRef.current.load();
                             }
                         }
                         if (audioRef.current) audioRef.current.volume = Math.max(0, vol);
                     }, 50);
                 } else {
                     audioRef.current.pause();
-                    audioRef.current.src = ''; // disconnect stream to save bandwidth
+                    audioRef.current.removeAttribute('src');
+                    audioRef.current.load();
                 }
             }
         }
@@ -71,6 +73,8 @@ export const AudioProvider = ({ children }) => {
 
     const play = useCallback(() => {
         if (audioRef.current && streamUrl) {
+            if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+            
             let finalUrl = streamUrl;
             try {
                 const liveUrl = new URL(streamUrl);
@@ -79,9 +83,9 @@ export const AudioProvider = ({ children }) => {
             } catch(e) { }
             
             audioRef.current.src = finalUrl;
+            audioRef.current.load(); // Force browser to recognize new source
             audioRef.current.volume = 0;
             audioRef.current.play().then(() => {
-                if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
                 let vol = 0;
                 fadeIntervalRef.current = setInterval(() => {
                     vol += 0.05;
@@ -106,7 +110,8 @@ export const AudioProvider = ({ children }) => {
                     clearInterval(fadeIntervalRef.current);
                     if (audioRef.current) {
                         audioRef.current.pause();
-                        audioRef.current.src = ''; // Disconnect stream to drop old buffer
+                        audioRef.current.removeAttribute('src'); // Properly disconnect
+                        audioRef.current.load(); // Flush the buffer
                     }
                 }
                 if (audioRef.current) audioRef.current.volume = Math.max(0, vol);
@@ -116,14 +121,21 @@ export const AudioProvider = ({ children }) => {
 
     useEffect(() => {
         if ('mediaSession' in navigator) {
+            const baseUrl = window.location.origin;
+            const artwork = [];
+            
+            if (currentTrack && currentTrack.cover) {
+                artwork.push({ src: currentTrack.cover, sizes: '512x512', type: 'image/png' });
+            } else {
+                artwork.push({ src: `${baseUrl}/web-app-manifest-192x192.png`, sizes: '192x192', type: 'image/png' });
+                artwork.push({ src: `${baseUrl}/web-app-manifest-512x512.png`, sizes: '512x512', type: 'image/png' });
+            }
+
             navigator.mediaSession.metadata = new window.MediaMetadata({
-                title: 'Live Broadcast',
-                artist: 'FM Vibhavi',
+                title: currentTrack?.title || 'Live Broadcast',
+                artist: currentTrack?.artist || 'FM Vibhavi',
                 album: 'Isipathana College Media Unit',
-                artwork: [
-                    { src: '/web-app-manifest-192x192.png', sizes: '192x192', type: 'image/png' },
-                    { src: '/web-app-manifest-512x512.png', sizes: '512x512', type: 'image/png' }
-                ]
+                artwork: artwork
             });
             
             navigator.mediaSession.setActionHandler('play', play);
@@ -134,7 +146,7 @@ export const AudioProvider = ({ children }) => {
                 navigator.mediaSession.setActionHandler('pause', null);
             };
         }
-    }, [play, pause]);
+    }, [play, pause, currentTrack]);
 
     useEffect(() => {
         const handleOnline = () => {
