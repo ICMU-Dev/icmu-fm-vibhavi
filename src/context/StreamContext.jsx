@@ -121,7 +121,8 @@ export const StreamProvider = ({ children }) => {
             .subscribe((status) => {
                 console.log('Supabase Realtime Status:', status);
                 if (status === 'CHANNEL_ERROR') {
-                    setDbError('Failed to connect to realtime updates.');
+                    setDbError('Failed to connect to realtime updates. Automatically refreshing...');
+                    setTimeout(() => window.location.reload(), 3000);
                 }
             });
 

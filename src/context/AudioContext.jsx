@@ -18,46 +18,37 @@ export const AudioProvider = ({ children }) => {
     useEffect(() => {
         const isAdmin = location.pathname.includes('/admin');
         
-        if (audioRef.current) {
-            if (isBroadcasting && streamUrl && !isAdmin) {
-                audioRef.current.src = streamUrl;
-                audioRef.current.load();
-                audioRef.current.volume = 0;
-                audioRef.current.play().then(() => {
-                    let vol = 0;
-                    fadeIntervalRef.current = setInterval(() => {
-                        vol += 0.05;
-                        if (vol >= 1) {
-                            vol = 1;
-                            clearInterval(fadeIntervalRef.current);
-                        }
-                        if (audioRef.current) audioRef.current.volume = vol;
-                    }, 50);
-                }).catch(e => console.warn("Autoplay prevented by browser:", e));
-            }
-            else {
-                if (audioRef.current && !audioRef.current.paused) {
-                    let vol = audioRef.current.volume;
-                    fadeIntervalRef.current = setInterval(() => {
-                        vol -= 0.05;
-                        if (vol <= 0) {
-                            vol = 0;
-                            clearInterval(fadeIntervalRef.current);
-                            if (audioRef.current) audioRef.current.pause();
-                        }
-                        if (audioRef.current) audioRef.current.volume = Math.max(0, vol);
-                    }, 50);
-                }
+        // Only force pause if the station goes offline
+        if (audioRef.current && !isBroadcasting && !isAdmin) {
+            if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+            if (!audioRef.current.paused) {
+                let vol = audioRef.current.volume;
+                fadeIntervalRef.current = setInterval(() => {
+                    vol -= 0.05;
+                    if (vol <= 0) {
+                        vol = 0;
+                        clearInterval(fadeIntervalRef.current);
+                        if (audioRef.current) audioRef.current.pause();
+                    }
+                    if (audioRef.current) audioRef.current.volume = Math.max(0, vol);
+                }, 50);
             }
         }
-    }, [isBroadcasting, streamUrl, location.pathname]);
+    }, [isBroadcasting, location.pathname]);
 
     const play = useCallback(() => {
         if (audioRef.current && streamUrl) {
             if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
             
+            let finalUrl = streamUrl;
+            try {
+                const liveUrl = new URL(streamUrl);
+                liveUrl.searchParams.set('t', Date.now().toString());
+                finalUrl = liveUrl.toString();
+            } catch(e) { }
+            
             // Re-assign src and force load to dump the old buffer and jump to the live edge!
-            audioRef.current.src = streamUrl;
+            audioRef.current.src = finalUrl;
             audioRef.current.load();
             
             audioRef.current.volume = 0;
@@ -73,7 +64,7 @@ export const AudioProvider = ({ children }) => {
                 }, 50);
             }).catch(e => {
                 console.error("Play failed, attempting reconnect:", e);
-                audioRef.current.src = streamUrl;
+                audioRef.current.src = finalUrl;
                 audioRef.current.load();
                 audioRef.current.play().then(() => {
                     audioRef.current.volume = 1;
@@ -131,7 +122,6 @@ export const AudioProvider = ({ children }) => {
         const handleOnline = () => {
             const isAdmin = location.pathname.includes('/admin');
             if (isBroadcasting && streamUrl && audioRef.current && !isAdmin) {
-                audioRef.current.src = streamUrl;
                 play();
             }
         };

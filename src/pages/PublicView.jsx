@@ -74,6 +74,16 @@ export function PublicView() {
         }
     }, [isBroadcasting, isPlaying, pause]);
 
+    const prevBroadcastingRef = useRef(isBroadcasting);
+
+    // Brute-force hard refresh if station comes back online to guarantee pristine state
+    useEffect(() => {
+        if (prevBroadcastingRef.current === false && isBroadcasting === true) {
+            window.location.reload();
+        }
+        prevBroadcastingRef.current = isBroadcasting;
+    }, [isBroadcasting]);
+
     // Audio Visualizer Loop
     useEffect(() => {
         if (audioRef.current && isPlaying && !audioCtxRef.current) {
