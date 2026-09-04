@@ -14,7 +14,7 @@ export function Logo({ variant = 'transparent', className, whiteMask = true }) {
             src={src} 
             alt="FM Vibhavi" 
             draggable={false}
-            fetchpriority="high"
+            fetchPriority="high"
             className={cn(
                 "object-contain", 
                 (whiteMask && variant === 'transparent') ? "brightness-0 invert" : "",

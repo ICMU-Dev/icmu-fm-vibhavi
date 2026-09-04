@@ -120,9 +120,16 @@ export const StreamProvider = ({ children }) => {
             })
             .subscribe((status) => {
                 console.log('Supabase Realtime Status:', status);
-                if (status === 'CHANNEL_ERROR') {
-                    setDbError('Failed to connect to realtime updates. Automatically refreshing...');
-                    setTimeout(() => window.location.reload(), 3000);
+                if (status === 'SUBSCRIBED') {
+                    setDbError(null);
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.warn('[Realtime] Subscription channel error encountered');
+                    setDbError('Realtime sync connection interrupted. Reconnecting...');
+                    setTimeout(() => {
+                        if (typeof window !== 'undefined' && navigator.onLine) {
+                            window.location.reload();
+                        }
+                    }, 4000);
                 }
             });
 

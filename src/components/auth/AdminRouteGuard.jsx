@@ -27,14 +27,6 @@ export function AdminRouteGuard() {
     setIsNotFound(false);
     const ssoToken = searchParams.get('sso_token');
 
-    // Clean up SSO token from URL after capture so address bar stays clean
-    if (ssoToken && typeof window !== 'undefined') {
-      try {
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
-      } catch (_) {}
-    }
-
     const result = await verifyOperatorAccess(indexNumber, ssoToken);
 
     if (result.notFound) {
@@ -50,6 +42,12 @@ export function AdminRouteGuard() {
       // If accessed via /admin without an index in the path, update URL to their dynamic index
       if (!indexNumber && result.operator.index_number) {
         navigate(`/${result.operator.index_number}`, { replace: true });
+      } else if (ssoToken && typeof window !== 'undefined') {
+        // Clean up SSO token from URL after verification so address bar stays clean
+        try {
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+        } catch (_) {}
       }
     } else {
       setAuthorized(false);

@@ -295,6 +295,36 @@
   box-sizing: border-box;
 }
 
+/* Hide scrollbars across all browsers while maintaining smooth scrolling */
+html,
+body,
+#root {
+  scrollbar-width: none; /* Firefox, modern Chrome, modern Safari */
+  -ms-overflow-style: none; /* IE and legacy Edge */
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+#root::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+  width: 0px;
+  height: 0px;
+}
+
+/* Utility classes to hide scrollbars on any scrollable container */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  width: 0px;
+  height: 0px;
+}
+
+.no-scrollbar,
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);

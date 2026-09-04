@@ -4,6 +4,7 @@ import { Radio, ArrowLeft, RadioReceiver, ExternalLink, Disc3 } from 'lucide-rea
 import { Logo } from '../components/Logo';
 import { getCookie, AUTH_COOKIE_KEYS } from '../utils/auth';
 import { ICMU_PORTAL_URL } from '../utils/constants';
+import { Button } from '@/components/motion/button';
 
 export function NotFoundPage() {
   const userIndex = getCookie(AUTH_COOKIE_KEYS.USER_INDEX);
@@ -46,11 +47,12 @@ export function NotFoundPage() {
         </div>
 
         <div className="w-full max-w-sm flex flex-col gap-2.5 pt-2">
-          <Link
-            to="/"
-            className="w-full py-3.5 px-5 rounded-2xl bg-primary text-primary-foreground font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-primary/90 transition-all active:scale-95 shadow-(--shadow-ultimate)">
-            <Radio className="w-4 h-4" />
-            <span>Tune to Live Radio</span>
+          <Link to="/" className="flex items-center gap-2">
+            <Button
+              className="w-full py-3.5 px-5 rounded-2xl  font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-primary/90 transition-all active:scale-95 shadow-(--shadow-ultimate)">
+              <Radio className="w-4 h-4" />
+              <span>Tune to Live Radio</span>
+            </Button>
           </Link>
 
           {userIndex ? (
@@ -73,7 +75,7 @@ export function NotFoundPage() {
             <a
               href={portalUrl}
               className="w-full py-2.5 text-xs text-muted-foreground hover:text-foreground font-medium uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 pt-1">
-              <span>Return to ICMU Portal</span>
+              <span>Return to ICMU Website</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
           )}

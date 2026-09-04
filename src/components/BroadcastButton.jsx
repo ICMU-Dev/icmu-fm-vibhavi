@@ -84,9 +84,14 @@ export function BroadcastButton({ disabled }) {
                     )}
                 </MetallicButton>
             </div>
-            <div className="h-6">
+            <div className="h-6 text-center">
                 <span className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">
-                    {disabled ? 'LOCKED' : (isHolding ? (isBroadcasting ? 'Cutting...' : 'Going Live...') : 'Hold 3s')}
+                    {disabled 
+                        ? 'Stream Link Required' 
+                        : (isHolding 
+                            ? (isBroadcasting ? 'Disconnecting...' : 'Connecting Live...') 
+                            : (isBroadcasting ? 'Hold 3s to Stop' : 'Hold 3s to Go Live'))
+                    }
                 </span>
             </div>
         </div>

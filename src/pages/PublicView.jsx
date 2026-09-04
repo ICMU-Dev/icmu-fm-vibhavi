@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStream } from '../context/StreamContext';
-import { useAudio } from '../context/AudioContext';
+import { useAudioPlayback } from '../context/AudioContext';
 import { Play, Pause, Volume2, VolumeX, Menu, Power, Heart, AlertTriangle, Radio } from 'lucide-react';
 import { Button } from '../components/motion/button/base';
 import { RangeSlider } from '../components/motion/range-slider';
 import { Link } from 'react-router-dom';
 import { Loader } from '../components/motion/loader';
 import { Logo } from '../components/Logo';
+import { VolumeKnob } from '../components/VolumeKnob';
 import { motion, AnimatePresence } from "motion/react";
 
 export function PublicView() {
     const { isBroadcasting, currentTrack } = useStream();
-    const { audioRef, play, pause } = useAudio();
+    const { audioRef, play, pause } = useAudioPlayback();
     const [isPlaying, setIsPlaying] = useState(false);
     const [isBuffering, setIsBuffering] = useState(false);
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -168,40 +169,42 @@ export function PublicView() {
       {/* Dynamic Background Glow */}
       <div className="absolute inset-0 bg-(image:--radialPrimaryAccent) opacity-10 pointer-events-none mix-blend-screen"/>
       
-      <div className="w-full max-w-sm sm:max-w-md bg-card/40 backdrop-blur-3xl border-0 sm:border border-white/5 sm:border-border/30 sm:rounded-[2.5rem] shadow-2xl overflow-hidden h-dvh sm:h-[75dvh] flex flex-col relative z-10">
+      <div className="w-full max-w-sm sm:max-w-md bg-card/40 backdrop-blur-3xl border-0 sm:border border-white/5 sm:border-border/30 sm:rounded-[2.5rem] shadow-2xl overflow-hidden h-dvh sm:h-auto sm:min-h-[740px] flex flex-col justify-between relative z-10 py-2 sm:py-5 px-4 no-scrollbar">
         
         {/* Top Nav */}
-        <div className="flex justify-center items-center pt-8 pb-4">
-           <Logo variant="transparent" className="h-10 opacity-90 drop-shadow-[0_0_12px_rgba(255,255,255,0.2)]" />
+        <div className="flex justify-center items-center pt-2 pb-2 shrink-0">
+           <Logo variant="transparent" className="h-9 sm:h-10 opacity-90 drop-shadow-[0_0_12px_rgba(255,255,255,0.2)]" />
         </div>
 
         {/* Frequency Display */}
-        <div className="flex flex-col items-center justify-center mt-6">
-          <div className="text-7xl font-bold font-heading text-foreground tracking-tighter drop-shadow-md">
+        <div className="flex flex-col items-center justify-center my-2 sm:my-3 shrink-0">
+          <div className="text-6xl sm:text-7xl font-bold font-heading text-foreground tracking-tighter drop-shadow-md">
              102.5
           </div>
           {currentTrack ? (
-              <div className="mt-4 justify-center flex items-center space-x-2 bg-background/50 backdrop-blur-sm rounded-full px-2 py-1.5 border border-border/10 max-w-[70%]">
-                 {currentTrack.cover && <img src={currentTrack.cover} alt="Cover" className="w-5 h-5 rounded-full object-cover shadow-sm" />}
-                 <marquee behavior="scroll" direction="left" style={{scrollAmount: 5}}><span className="flex items-center text-xs font-body text-muted-foreground uppercase tracking-widest">
-                    {currentTrack.artist ? `${currentTrack.artist} - ${currentTrack.title}` : currentTrack.title}
-                 </span></marquee>
+              <div className="mt-3 justify-center flex items-center space-x-2 bg-background/50 backdrop-blur-sm rounded-full px-2.5 py-1 border border-border/10 max-w-[75%] shadow-sm">
+                 {currentTrack.cover && <img src={currentTrack.cover} alt="Cover" className="w-5 h-5 rounded-full object-cover shadow-sm shrink-0" />}
+                 <marquee behavior="scroll" direction="left" style={{ scrollAmount: 5 }}>
+                   <span className="flex items-center text-xs font-body text-muted-foreground uppercase tracking-widest">
+                     {currentTrack.artist ? `${currentTrack.artist} - ${currentTrack.title}` : currentTrack.title}
+                   </span>
+                 </marquee>
               </div>
           ) : (
-              <Heart className="w-6 h-6 text-primary mt-4 drop-shadow-[0_0_12px_rgba(var(--primary),0.6)] cursor-pointer hover:scale-110 transition-transform"/>
+              <Heart className="w-5 h-5 text-primary mt-3 drop-shadow-[0_0_12px_rgba(var(--primary),0.6)] cursor-pointer hover:scale-110 transition-transform"/>
           )}
         </div>
 
         {/* Waveform Visualizer */}
-        <div className="flex-1 flex items-end justify-center px-6 mt-12  max-h-[15%] min-h-30 opacity-90">
-           <div className="w-full h-full flex items-end justify-center space-x-1.5 pb-4 border-b border-white/5 relative">
+        <div className="flex items-end justify-center px-6 my-2 sm:my-3 h-16 sm:h-20 opacity-90 shrink-0">
+           <div className="w-full h-full flex items-end justify-center space-x-1.5 pb-2 border-b border-white/5 relative">
               {/* Fake gradient mask for bottom fade */}
-              <div className="absolute inset-x-0 bottom-0 h-12 bg-linear-to-t from-bg-card/50 to-transparent z-10 pointer-events-none"/>
+              <div className="absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-bg-card/50 to-transparent z-10 pointer-events-none"/>
               {Array.from({ length: 24 }).map((_, i) => (
                   <div 
                     key={i} 
                     ref={el => barsRef.current[i] = el}
-                    className={`w-2.5 rounded-t-full bg-linear-to-t from-transparent via-primary/60 to-primary drop-shadow-[0_0_6px_rgba(var(--primary),0.4)] ${isPlaying ? 'transition-none' : 'opacity-40 transition-all duration-500 ease-out'}`} 
+                    className={`w-2 sm:w-2.5 rounded-t-full bg-linear-to-t from-transparent via-primary/60 to-primary drop-shadow-[0_0_6px_rgba(var(--primary),0.4)] ${isPlaying ? 'transition-none' : 'opacity-40 transition-all duration-500 ease-out'}`} 
                     style={{ height: '12px' }}
                   />
               ))}
@@ -209,49 +212,49 @@ export function PublicView() {
         </div>
 
         {/* Large Tuning Dial / Play Control */}
-        <div className="mt-8 mb-16 flex justify-center relative">
+        <div className="my-2 sm:my-3 flex justify-center relative shrink-0">
            {/* Background dial track */}
-           <div className="w-72 h-72 rounded-full border-16 border-background/80 flex items-center justify-center relative shadow-(--shadow-ultimate) overflow-hidden">
+           <div className="w-48 h-48 sm:w-54 sm:h-54 rounded-full border-10 sm:border-12 border-background/80 flex items-center justify-center relative shadow-(--shadow-ultimate) overflow-hidden">
               {/* Dial markers */}
               <div className="absolute inset-0 rounded-full border border-border/10 pointer-events-none" style={{
             background: 'repeating-conic-gradient(from 0deg, transparent 0deg 10deg, rgba(255,255,255,0.03) 10deg 11deg)'
         }}/>
               
               {/* Center Play Button */}
-              <Button onClick={togglePlay} disabled={!isBroadcasting || isOffline} variant="ghost" className={`w-32 h-32 rounded-full transition-all duration-700 ease-out flex items-center justify-center z-20 relative overflow-hidden ${(!isBroadcasting || isOffline) ? 'bg-background text-muted-foreground opacity-80' : 'bg-background text-foreground'} ${isPlaying ? 'shadow-[0_0_50px_rgba(var(--primary),0.25),8px_8px_16px_rgba(0,0,0,0.6),-4px_-4px_12px_rgba(255,255,255,0.02)]' : 'shadow-[8px_8px_20px_rgba(0,0,0,0.6),-4px_-4px_12px_rgba(255,255,255,0.03)] hover:shadow-[4px_4px_10px_rgba(0,0,0,0.5),-2px_-2px_6px_rgba(255,255,255,0.02)]'}`}>
+              <Button onClick={togglePlay} disabled={!isBroadcasting || isOffline} variant="ghost" className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full transition-all duration-700 ease-out flex items-center justify-center z-20 relative overflow-hidden ${(!isBroadcasting || isOffline) ? 'bg-background text-muted-foreground opacity-80' : 'bg-background text-foreground'} ${isPlaying ? 'shadow-[0_0_50px_rgba(var(--primary),0.25),8px_8px_16px_rgba(0,0,0,0.6),-4px_-4px_12px_rgba(255,255,255,0.02)]' : 'shadow-[8px_8px_20px_rgba(0,0,0,0.6),-4px_-4px_12px_rgba(255,255,255,0.03)] hover:shadow-[4px_4px_10px_rgba(0,0,0,0.5),-2px_-2px_6px_rgba(255,255,255,0.02)]'}`}>
                  <AnimatePresence>
                  {isOffline ? (
                     <motion.div key="offline" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex flex-col items-center justify-center space-y-1">
-                       <AlertTriangle className="w-8 h-8 text-destructive opacity-80" />
-                       <span className="text-[10px] font-bold text-destructive uppercase tracking-widest leading-none mt-1">Offline</span>
+                       <AlertTriangle className="w-6 h-6 text-destructive opacity-80" />
+                       <span className="text-[9px] font-bold text-destructive uppercase tracking-widest leading-none mt-1">Offline</span>
                     </motion.div>
                  ) : isBuffering ? (
                     <motion.div key="buffering" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex items-center justify-center">
-                       <Loader variant="spinner" size={48} className="text-primary drop-shadow-[0_0_12px_rgba(var(--primary),0.6)]" />
+                       <Loader variant="spinner" size={36} className="text-primary drop-shadow-[0_0_12px_rgba(var(--primary),0.6)]" />
                     </motion.div>
                  ) : isPlaying ? (
                     <motion.div key="pause" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex items-center justify-center">
-                       <Pause className="w-12 h-12 text-primary drop-shadow-[0_0_12px_rgba(var(--primary),0.6)]"/>
+                       <Pause className="w-8 h-8 sm:w-10 sm:h-10 text-primary drop-shadow-[0_0_12px_rgba(var(--primary),0.6)]"/>
                     </motion.div>
                  ) : (
-                    <motion.div key="play" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex items-center justify-center pl-1.5">
-                       <Play className="w-12 h-12 text-foreground opacity-80 hover:opacity-100 transition-opacity"/>
+                    <motion.div key="play" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex items-center justify-center pl-1">
+                       <Play className="w-8 h-8 sm:w-10 sm:h-10 text-foreground opacity-80 hover:opacity-100 transition-opacity"/>
                     </motion.div>
                  )}
                  </AnimatePresence>
               </Button>
 
               {/* Value indicators */}
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-8 border-t-primary drop-shadow-[0_0_6px_rgba(var(--primary),0.8)]"/>
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-6 border-t-primary drop-shadow-[0_0_6px_rgba(var(--primary),0.8)]"/>
 
               {/* Offline Overlay */}
               {!isBroadcasting && (
-                  <div className="absolute inset-0 bg-background/80 backdrop-blur-md z-30 flex flex-col items-center justify-center transition-all duration-1000 ease-in-out opacity-100">
-                      <div className="relative flex items-center justify-center mb-4">
-                          <div className="absolute w-12 h-12 bg-destructive/20 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
-                          <Radio className="w-6 h-6 text-destructive opacity-80 z-10" />
+                  <div className="absolute inset-0 bg-background/80 backdrop-blur-md z-30 flex flex-col items-center justify-center transition-all duration-1000 ease-in-out opacity-100 p-4">
+                      <div className="relative flex items-center justify-center mb-3">
+                          <div className="absolute w-10 h-10 bg-destructive/20 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
+                          <Radio className="w-5 h-5 text-destructive opacity-80 z-10" />
                       </div>
-                      <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold text-center px-10 leading-relaxed">
+                      <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold text-center leading-relaxed">
                           FM Vibhavi is offline. We'll be back soon!
                       </span>
                   </div>
@@ -259,14 +262,19 @@ export function PublicView() {
            </div>
         </div>
 
+        {/* Volume Control Knob Module */}
+        <div className="w-full flex justify-center items-center my-1.5 sm:my-2 shrink-0">
+           <VolumeKnob />
+        </div>
+
         {/* Footer */}
-        <div className="mt-auto pb-8 w-full flex flex-col items-center justify-center opacity-50 hover:opacity-100 transition-opacity">
+        <div className="pt-2 pb-1 w-full flex flex-col items-center justify-center opacity-50 hover:opacity-100 transition-opacity shrink-0">
             <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-widest flex items-center space-x-1.5">
                 <span>Made with</span>
                 <Heart className="w-3 h-3 text-destructive inline-block fill-destructive" />
                 <span>by</span>
             </p>
-            <p className="text-[10px] font-bold text-foreground mt-1 uppercase tracking-widest">
+            <p className="text-[10px] font-bold text-foreground mt-0.5 uppercase tracking-widest">
                 Isipathana College Media Unit
             </p>
         </div>

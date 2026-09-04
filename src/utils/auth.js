@@ -151,6 +151,12 @@ export async function verifyOperatorAccess(routeIndexNumber, ssoTokenFromUrl = n
     let resolvedIndex = routeIndexNumber;
     let ssoPayload = null;
 
+    // Helper for safe, type-agnostic index number matching
+    const matchIndices = (a, b) => {
+      if (a == null || b == null) return false;
+      return String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+    };
+
     // If route segment is non-numeric (and not 'admin'), treat as 404 page
     if (routeIndexNumber && !/^\d+$/.test(routeIndexNumber) && routeIndexNumber !== 'admin') {
       return {
@@ -161,32 +167,50 @@ export async function verifyOperatorAccess(routeIndexNumber, ssoTokenFromUrl = n
       };
     }
 
-    // 1. Process SSO token from URL parameter if present
-    if (ssoTokenFromUrl) {
-      ssoPayload = decodeSsoToken(ssoTokenFromUrl);
-      if (ssoPayload?.indexNumber) {
+    // 1. Process SSO token: check URL first, then fall back to saved cookie / localStorage
+    let activeToken = ssoTokenFromUrl || getCookie(AUTH_COOKIE_KEYS.SSO_TOKEN) || null;
+    if (!activeToken && typeof localStorage !== 'undefined') {
+      try {
+        activeToken = localStorage.getItem('icmu_sso_token') || null;
+      } catch (_) {}
+    }
+
+    if (activeToken) {
+      const decoded = decodeSsoToken(activeToken);
+      if (decoded && decoded.indexNumber) {
+        ssoPayload = decoded;
         resolvedIndex = resolvedIndex || ssoPayload.indexNumber;
+      } else if (ssoTokenFromUrl) {
+        console.warn('[Auth] SSO token provided in URL was invalid or expired');
       }
     }
 
     // 2. Fetch existing session from cookies/storage
     const cookieIndex = getCookie(AUTH_COOKIE_KEYS.USER_INDEX);
+    const cookieRole = getCookie(AUTH_COOKIE_KEYS.USER_ROLE);
     const cookieSession = getCookie(AUTH_COOKIE_KEYS.SESSION);
-    let existingSessionIndex = cookieIndex || cookieSession?.indexNumber || null;
+    let localSession = null;
 
-    if (!existingSessionIndex && typeof localStorage !== 'undefined') {
+    if (typeof localStorage !== 'undefined') {
       try {
         const raw = localStorage.getItem('icmu_session');
         if (raw) {
-          const parsed = JSON.parse(raw);
-          existingSessionIndex = parsed.indexNumber || null;
+          localSession = JSON.parse(raw);
         }
       } catch (_) {}
     }
 
-    // If no route index was provided, try to use existing session index
+    let existingSessionIndex = 
+      cookieIndex || 
+      cookieSession?.indexNumber || 
+      cookieSession?.index_number || 
+      localSession?.indexNumber || 
+      localSession?.index_number || 
+      null;
+
+    // If no route index was provided (e.g. /admin), resolve to known session or SSO index
     if (!resolvedIndex || resolvedIndex === 'admin') {
-      resolvedIndex = existingSessionIndex;
+      resolvedIndex = existingSessionIndex || ssoPayload?.indexNumber || null;
     }
 
     if (!resolvedIndex || resolvedIndex === 'admin') {
@@ -197,10 +221,9 @@ export async function verifyOperatorAccess(routeIndexNumber, ssoTokenFromUrl = n
       };
     }
 
-    // SECURITY GATE: If they requested a specific index via URL, we MUST verify they own it.
-    // They must either provide a valid SSO token for it, OR their existing session must match it.
-    const hasValidSsoToken = ssoPayload && ssoPayload.indexNumber === resolvedIndex;
-    const hasValidExistingSession = existingSessionIndex === resolvedIndex;
+    // SECURITY GATE: Verify operator owns the requested index
+    const hasValidSsoToken = Boolean(ssoPayload && matchIndices(ssoPayload.indexNumber, resolvedIndex));
+    const hasValidExistingSession = Boolean(existingSessionIndex && matchIndices(existingSessionIndex, resolvedIndex));
 
     if (!hasValidSsoToken && !hasValidExistingSession) {
       return {
@@ -212,16 +235,39 @@ export async function verifyOperatorAccess(routeIndexNumber, ssoTokenFromUrl = n
 
     // 3. Fast-path: If valid non-expired SSO token matches resolved index and has clearance
     if (hasValidSsoToken && hasBroadcasterClearance(ssoPayload.role)) {
+      // Persist SSO token
+      if (activeToken) {
+        setCookie(AUTH_COOKIE_KEYS.SSO_TOKEN, activeToken);
+        if (typeof localStorage !== 'undefined') {
+          try {
+            localStorage.setItem('icmu_sso_token', activeToken);
+          } catch (_) {}
+        }
+      }
+
+      const avatar = ssoPayload.avatarUrl || cookieSession?.avatarUrl || cookieSession?.avatar_url || localSession?.avatarUrl || localSession?.avatar_url || null;
+      const normalizedOp = {
+        id: ssoPayload.id || cookieSession?.id || localSession?.id,
+        full_name: ssoPayload.name || cookieSession?.name || cookieSession?.full_name || localSession?.name || localSession?.full_name || 'Broadcaster',
+        name: ssoPayload.name || cookieSession?.name || cookieSession?.full_name || localSession?.name || localSession?.full_name || 'Broadcaster',
+        index_number: ssoPayload.indexNumber,
+        indexNumber: ssoPayload.indexNumber,
+        role: ssoPayload.role,
+        avatar_url: avatar,
+        avatarUrl: avatar,
+      };
+
       setCookie(AUTH_COOKIE_KEYS.USER_INDEX, ssoPayload.indexNumber);
       setCookie(AUTH_COOKIE_KEYS.USER_ROLE, ssoPayload.role);
-      setCookie(AUTH_COOKIE_KEYS.SESSION, {
-        id: ssoPayload.id,
-        name: ssoPayload.name,
-        role: ssoPayload.role,
-        indexNumber: ssoPayload.indexNumber,
-      });
+      setCookie(AUTH_COOKIE_KEYS.SESSION, normalizedOp);
 
-      // Background verify without blocking
+      if (typeof localStorage !== 'undefined') {
+        try {
+          localStorage.setItem('icmu_session', JSON.stringify(normalizedOp));
+        } catch (_) {}
+      }
+
+      // Background verify and sync avatar/details without blocking UI
       supabase
         .from('users')
         .select('id, full_name, index_number, role, is_active, avatar_url, email')
@@ -229,26 +275,29 @@ export async function verifyOperatorAccess(routeIndexNumber, ssoTokenFromUrl = n
         .maybeSingle()
         .then(({ data }) => {
           if (data && data.is_active !== false) {
-            setCookie(AUTH_COOKIE_KEYS.SESSION, {
+            const updated = {
               id: data.id,
+              full_name: data.full_name,
               name: data.full_name,
               role: data.role,
+              index_number: data.index_number,
               indexNumber: data.index_number,
+              avatar_url: data.avatar_url,
               avatarUrl: data.avatar_url,
-            });
+            };
+            setCookie(AUTH_COOKIE_KEYS.SESSION, updated);
+            if (typeof localStorage !== 'undefined') {
+              try {
+                localStorage.setItem('icmu_session', JSON.stringify(updated));
+              } catch (_) {}
+            }
           }
         })
         .catch(() => {});
 
       return {
         authorized: true,
-        operator: {
-          id: ssoPayload.id,
-          full_name: ssoPayload.name,
-          index_number: ssoPayload.indexNumber,
-          role: ssoPayload.role,
-          avatar_url: null,
-        },
+        operator: normalizedOp,
       };
     }
 
@@ -259,38 +308,65 @@ export async function verifyOperatorAccess(routeIndexNumber, ssoTokenFromUrl = n
       .eq('index_number', resolvedIndex)
       .maybeSingle();
 
-    if (error) {
-      console.error('[Auth] Supabase verification query failed:', error.message);
-      // If network error but we have a valid recent SSO token matching index, fallback gracefully
+    if (error || !dbUser) {
+      // Supabase query failed or was blocked by Row Level Security (RLS)
+      if (error) {
+        console.warn('[Auth] Supabase verification query notice:', error.message);
+      }
+
+      // Graceful fallback to verified SSO token
       if (hasValidSsoToken && hasBroadcasterClearance(ssoPayload.role)) {
         return {
           authorized: true,
           operator: {
             id: ssoPayload.id,
             full_name: ssoPayload.name,
+            name: ssoPayload.name,
             index_number: ssoPayload.indexNumber,
+            indexNumber: ssoPayload.indexNumber,
             role: ssoPayload.role,
-            avatar_url: null,
+            avatar_url: cookieSession?.avatar_url || localSession?.avatar_url || null,
+            avatarUrl: cookieSession?.avatarUrl || localSession?.avatarUrl || null,
           },
         };
       }
+
+      // Graceful fallback to verified existing session
+      const savedRole = cookieRole || cookieSession?.role || localSession?.role;
+      if (hasValidExistingSession && hasBroadcasterClearance(savedRole)) {
+        const fallbackOp = {
+          id: cookieSession?.id || localSession?.id || resolvedIndex,
+          full_name: cookieSession?.name || cookieSession?.full_name || localSession?.name || localSession?.full_name || `Operator ${resolvedIndex}`,
+          name: cookieSession?.name || cookieSession?.full_name || localSession?.name || localSession?.full_name || `Operator ${resolvedIndex}`,
+          index_number: resolvedIndex,
+          indexNumber: resolvedIndex,
+          role: savedRole,
+          avatar_url: cookieSession?.avatar_url || cookieSession?.avatarUrl || localSession?.avatar_url || localSession?.avatarUrl || null,
+          avatarUrl: cookieSession?.avatarUrl || cookieSession?.avatar_url || localSession?.avatarUrl || localSession?.avatar_url || null,
+        };
+        return {
+          authorized: true,
+          operator: fallbackOp,
+        };
+      }
+
+      if (!dbUser && !error) {
+        return {
+          notFound: true,
+          authorized: false,
+          operator: null,
+          reason: `Operator identity [${resolvedIndex}] not registered in central database.`,
+        };
+      }
+
       return {
         authorized: false,
         operator: null,
-        reason: 'Database verification failed: ' + error.message,
+        reason: 'Database verification failed: ' + (error?.message || 'Unauthorized'),
       };
     }
 
-    if (!dbUser) {
-      return {
-        notFound: true,
-        authorized: false,
-        operator: null,
-        reason: `Operator identity [${resolvedIndex}] not registered in central database.`,
-      };
-    }
-
-    // 4. Check if account is suspended
+    // 5. Check if account is suspended
     if (dbUser.is_active === false) {
       return {
         authorized: false,
@@ -299,7 +375,7 @@ export async function verifyOperatorAccess(routeIndexNumber, ssoTokenFromUrl = n
       };
     }
 
-    // 5. Verify role clearance includes Broadcaster
+    // 6. Verify role clearance includes Broadcaster
     const isAuthorized = hasBroadcasterClearance(dbUser.role);
     if (!isAuthorized) {
       return {
@@ -310,32 +386,40 @@ export async function verifyOperatorAccess(routeIndexNumber, ssoTokenFromUrl = n
       };
     }
 
-    // 6. Persist verified session in local cookies and storage
-    setCookie(AUTH_COOKIE_KEYS.USER_INDEX, dbUser.index_number);
-    setCookie(AUTH_COOKIE_KEYS.USER_ROLE, dbUser.role);
-    setCookie(AUTH_COOKIE_KEYS.SESSION, {
+    // 7. Persist verified session in local cookies and storage
+    const normalizedDbUser = {
       id: dbUser.id,
+      full_name: dbUser.full_name,
       name: dbUser.full_name,
       role: dbUser.role,
+      index_number: dbUser.index_number,
       indexNumber: dbUser.index_number,
+      avatar_url: dbUser.avatar_url,
       avatarUrl: dbUser.avatar_url,
-    });
+    };
+
+    setCookie(AUTH_COOKIE_KEYS.USER_INDEX, dbUser.index_number);
+    setCookie(AUTH_COOKIE_KEYS.USER_ROLE, dbUser.role);
+    setCookie(AUTH_COOKIE_KEYS.SESSION, normalizedDbUser);
+
+    if (activeToken) {
+      setCookie(AUTH_COOKIE_KEYS.SSO_TOKEN, activeToken);
+      if (typeof localStorage !== 'undefined') {
+        try {
+          localStorage.setItem('icmu_sso_token', activeToken);
+        } catch (_) {}
+      }
+    }
 
     if (typeof localStorage !== 'undefined') {
       try {
-        localStorage.setItem('icmu_session', JSON.stringify({
-          id: dbUser.id,
-          name: dbUser.full_name,
-          role: dbUser.role,
-          indexNumber: dbUser.index_number,
-          avatarUrl: dbUser.avatar_url,
-        }));
+        localStorage.setItem('icmu_session', JSON.stringify(normalizedDbUser));
       } catch (_) {}
     }
 
     return {
       authorized: true,
-      operator: dbUser,
+      operator: normalizedDbUser,
     };
   } catch (err) {
     console.error('[Auth] Verification unexpected exception:', err);
