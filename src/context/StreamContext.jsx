@@ -212,7 +212,30 @@ export const StreamProvider = ({ children }) => {
         return () => clearInterval(timer);
     }, [isBroadcasting, streamUrl, startedAt]);
 
-    // Track metadata polling (RadioKing API support)
+// Robust radio ID extractor supporting trailing slashes, /listen, and query params
+const extractRadioId = (url) => {
+    if (!url) return null;
+    try {
+        const clean = url.trim().replace(/\/+$/, '');
+        const urlObj = new URL(clean.startsWith('http') ? clean : `https://${clean}`);
+        const segments = urlObj.pathname.split('/').filter(Boolean);
+        if (segments.length === 0) return null;
+        let id = segments[segments.length - 1];
+        if (id.toLowerCase() === 'listen' && segments.length > 1) {
+            id = segments[segments.length - 2];
+        }
+        return id || null;
+    } catch {
+        const parts = url.trim().split('?')[0].replace(/\/+$/, '').split('/');
+        let id = parts[parts.length - 1];
+        if (id && id.toLowerCase() === 'listen' && parts.length > 1) {
+            id = parts[parts.length - 2];
+        }
+        return id || null;
+    }
+};
+
+    // Track metadata polling (RadioKing API support with cache-busting & timeline sync)
     useEffect(() => {
         let interval;
         const fetchTrack = async () => {
@@ -222,15 +245,46 @@ export const StreamProvider = ({ children }) => {
             }
             try {
                 if (streamUrl.includes('radioking.io')) {
-                    const parts = streamUrl.split('/');
-                    const radioId = parts[parts.length - 1].split('?')[0];
-                    const res = await fetch(`https://api.radioking.io/widget/radio/${radioId}/track/current`);
+                    const radioId = extractRadioId(streamUrl);
+                    if (!radioId) return;
+
+                    const now = Date.now();
+                    const cacheBuster = `_t=${now}`;
+
+                    const res = await fetch(`https://api.radioking.io/widget/radio/${radioId}/track/current?${cacheBuster}`);
                     if (res.ok) {
                         const data = await res.json();
+                        const endAtTime = data.end_at ? new Date(data.end_at).getTime() : null;
+                        const isExpired = !data.is_live && endAtTime && (now > endAtTime + 1500);
+
+                        // If RadioKing current track is expired past end_at, cross-check next playlist
+                        if (isExpired) {
+                            try {
+                                const nextRes = await fetch(`https://api.radioking.io/widget/radio/${radioId}/track/next?${cacheBuster}`);
+                                if (nextRes.ok) {
+                                    const nextList = await nextRes.json();
+                                    if (Array.isArray(nextList) && nextList.length > 0) {
+                                        const active = nextList.find(item => {
+                                            const start = item.started_at ? new Date(item.started_at).getTime() : 0;
+                                            return start > 0 && start <= now;
+                                        });
+                                        if (active) {
+                                            setCurrentTrack({
+                                                title: active.title,
+                                                artist: active.artist || null,
+                                                cover: active.cover_url || active.cover || null
+                                            });
+                                            return;
+                                        }
+                                    }
+                                }
+                            } catch (_) {}
+                        }
+
                         setCurrentTrack({
                             title: data.title,
-                            artist: data.artist,
-                            cover: data.cover
+                            artist: data.artist || null,
+                            cover: data.cover || null
                         });
                     }
                 }
@@ -241,7 +295,25 @@ export const StreamProvider = ({ children }) => {
 
         if (isBroadcastingState) {
             fetchTrack();
-            interval = setInterval(fetchTrack, 15000); // Poll every 15s
+            interval = setInterval(fetchTrack, 8000); // Poll every 8s
+
+            const handleVisibilityChange = () => {
+                if (document.visibilityState === 'visible') {
+                    fetchTrack();
+                }
+            };
+            const handleFocus = () => {
+                fetchTrack();
+            };
+
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+            window.addEventListener('focus', handleFocus);
+
+            return () => {
+                clearInterval(interval);
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+                window.removeEventListener('focus', handleFocus);
+            };
         } else {
             setCurrentTrack(null);
         }

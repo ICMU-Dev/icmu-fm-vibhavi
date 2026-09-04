@@ -251,7 +251,7 @@ export function AdminDashboard({ operator = null }) {
               {currentTrack ? (
                 <div className="mt-4 justify-center flex items-center shadow-ultimate space-x-2 bg-background/50 backdrop-blur-sm rounded-full px-3 py-1.5 border border-border/10 max-w-[65%]">
                    {currentTrack.cover && <img src={currentTrack.cover} alt="Cover" className="w-5 h-5 rounded-full object-cover shadow-sm shrink-0" />}
-                   <marquee behavior="scroll" direction="left" style={{ scrollAmount: 5 }}>
+                   <marquee key={`${currentTrack.title}-${currentTrack.artist}`} behavior="scroll" direction="left" scrollamount="5">
                      <span className="flex items-center text-xs font-body text-muted-foreground uppercase tracking-widest">
                         {currentTrack.artist ? `${currentTrack.artist} - ${currentTrack.title}` : currentTrack.title}
                      </span>

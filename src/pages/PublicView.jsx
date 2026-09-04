@@ -169,7 +169,7 @@ export function PublicView() {
       {/* Dynamic Background Glow */}
       <div className="absolute inset-0 bg-(image:--radialPrimaryAccent) opacity-10 pointer-events-none mix-blend-screen"/>
       
-      <div className="w-full max-w-sm sm:max-w-md bg-card/40 backdrop-blur-3xl border-0 sm:border border-white/5 sm:border-border/30 sm:rounded-[2.5rem] shadow-2xl overflow-hidden h-dvh sm:h-auto sm:min-h-[740px] flex flex-col justify-between relative z-10 py-2 sm:py-5 px-4 no-scrollbar">
+      <div className="w-full max-w-sm sm:max-w-md bg-card/40 backdrop-blur-3xl border-0 sm:border border-white/5 sm:border-border/30 sm:rounded-[2.5rem] shadow-2xl overflow-hidden h-dvh sm:h-auto sm:min-h-185 flex flex-col justify-between relative z-10 py-2 sm:py-5 px-4 no-scrollbar">
         
         {/* Top Nav */}
         <div className="flex justify-center items-center pt-2 pb-2 shrink-0">
@@ -184,7 +184,7 @@ export function PublicView() {
           {currentTrack ? (
               <div className="mt-3 justify-center flex items-center space-x-2 bg-background/50 backdrop-blur-sm rounded-full px-2.5 py-1 border border-border/10 max-w-[75%] shadow-sm">
                  {currentTrack.cover && <img src={currentTrack.cover} alt="Cover" className="w-5 h-5 rounded-full object-cover shadow-sm shrink-0" />}
-                 <marquee behavior="scroll" direction="left" style={{ scrollAmount: 5 }}>
+                 <marquee key={`${currentTrack.title}-${currentTrack.artist}`} behavior="scroll" direction="left" scrollamount="5">
                    <span className="flex items-center text-xs font-body text-muted-foreground uppercase tracking-widest">
                      {currentTrack.artist ? `${currentTrack.artist} - ${currentTrack.title}` : currentTrack.title}
                    </span>
@@ -212,40 +212,40 @@ export function PublicView() {
         </div>
 
         {/* Large Tuning Dial / Play Control */}
-        <div className="my-2 sm:my-3 flex justify-center relative shrink-0">
+        <div className="my-1.5 sm:my-2 flex justify-center relative shrink-0">
            {/* Background dial track */}
-           <div className="w-48 h-48 sm:w-54 sm:h-54 rounded-full border-10 sm:border-12 border-background/80 flex items-center justify-center relative shadow-(--shadow-ultimate) overflow-hidden">
+           <div className="w-56 h-56 sm:w-60 sm:h-60 rounded-full border-8 sm:border-10 border-background/80 flex items-center justify-center relative shadow-(--shadow-ultimate) overflow-hidden">
               {/* Dial markers */}
               <div className="absolute inset-0 rounded-full border border-border/10 pointer-events-none" style={{
             background: 'repeating-conic-gradient(from 0deg, transparent 0deg 10deg, rgba(255,255,255,0.03) 10deg 11deg)'
         }}/>
               
               {/* Center Play Button */}
-              <Button onClick={togglePlay} disabled={!isBroadcasting || isOffline} variant="ghost" className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full transition-all duration-700 ease-out flex items-center justify-center z-20 relative overflow-hidden ${(!isBroadcasting || isOffline) ? 'bg-background text-muted-foreground opacity-80' : 'bg-background text-foreground'} ${isPlaying ? 'shadow-[0_0_50px_rgba(var(--primary),0.25),8px_8px_16px_rgba(0,0,0,0.6),-4px_-4px_12px_rgba(255,255,255,0.02)]' : 'shadow-[8px_8px_20px_rgba(0,0,0,0.6),-4px_-4px_12px_rgba(255,255,255,0.03)] hover:shadow-[4px_4px_10px_rgba(0,0,0,0.5),-2px_-2px_6px_rgba(255,255,255,0.02)]'}`}>
+              <Button onClick={togglePlay} disabled={!isBroadcasting || isOffline} variant="ghost" className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full transition-all duration-700 ease-out flex items-center justify-center z-20 relative overflow-hidden ${(!isBroadcasting || isOffline) ? 'bg-background text-muted-foreground opacity-80' : 'bg-background text-foreground'} ${isPlaying ? 'shadow-[0_0_40px_rgba(var(--primary),0.25),6px_6px_14px_rgba(0,0,0,0.6),-3px_-3px_10px_rgba(255,255,255,0.02)]' : 'shadow-[6px_6px_16px_rgba(0,0,0,0.6),-3px_-3px_10px_rgba(255,255,255,0.03)] hover:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-2px_-2px_5px_rgba(255,255,255,0.02)]'}`}>
                  <AnimatePresence>
                  {isOffline ? (
                     <motion.div key="offline" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex flex-col items-center justify-center space-y-1">
-                       <AlertTriangle className="w-6 h-6 text-destructive opacity-80" />
+                       <AlertTriangle className="w-5 h-5 text-destructive opacity-80" />
                        <span className="text-[9px] font-bold text-destructive uppercase tracking-widest leading-none mt-1">Offline</span>
                     </motion.div>
                  ) : isBuffering ? (
                     <motion.div key="buffering" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex items-center justify-center">
-                       <Loader variant="spinner" size={36} className="text-primary drop-shadow-[0_0_12px_rgba(var(--primary),0.6)]" />
+                       <Loader variant="spinner" size={30} className="text-primary drop-shadow-[0_0_12px_rgba(var(--primary),0.6)]" />
                     </motion.div>
                  ) : isPlaying ? (
                     <motion.div key="pause" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex items-center justify-center">
-                       <Pause className="w-8 h-8 sm:w-10 sm:h-10 text-primary drop-shadow-[0_0_12px_rgba(var(--primary),0.6)]"/>
+                       <Pause className="w-9 h-9 sm:w-10 sm:h-10 text-primary drop-shadow-[0_0_12px_rgba(var(--primary),0.6)]"/>
                     </motion.div>
                  ) : (
                     <motion.div key="play" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex items-center justify-center pl-1">
-                       <Play className="w-8 h-8 sm:w-10 sm:h-10 text-foreground opacity-80 hover:opacity-100 transition-opacity"/>
+                       <Play className="w-9 h-9 sm:w-10 sm:h-10 text-foreground opacity-80 hover:opacity-100 transition-opacity"/>
                     </motion.div>
                  )}
                  </AnimatePresence>
               </Button>
 
               {/* Value indicators */}
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-6 border-t-primary drop-shadow-[0_0_6px_rgba(var(--primary),0.8)]"/>
+              <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[3.5px] border-l-transparent border-r-[3.5px] border-r-transparent border-t-[5px] sm:border-t-6 border-t-primary drop-shadow-[0_0_6px_rgba(var(--primary),0.8)]"/>
 
               {/* Offline Overlay */}
               {!isBroadcasting && (
@@ -263,7 +263,7 @@ export function PublicView() {
         </div>
 
         {/* Volume Control Knob Module */}
-        <div className="w-full flex justify-center items-center my-1.5 sm:my-2 shrink-0">
+        <div className="w-full flex justify-center items-center my-1.5 sm:my-1 shrink-0">
            <VolumeKnob />
         </div>
 
