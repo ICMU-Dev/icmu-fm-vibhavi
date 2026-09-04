@@ -6,8 +6,9 @@ import { getRoleLabel } from '../../utils/auth';
 function SafeAvatar({ src, name }) {
   const [hasError, setHasError] = useState(false);
   const initial = name ? name.trim().charAt(0).toUpperCase() : 'A';
+  const isSafe = src && typeof src === 'string' && (src.startsWith('https:') || src.startsWith('http:') || src.startsWith('/') || src.startsWith('data:image/'));
 
-  if (src && !hasError) {
+  if (isSafe && !hasError) {
     return (
       <img
         src={src}
@@ -41,22 +42,31 @@ export const ActiveAdmins = ({ user, isMobile = false }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Ensure current user is displayed even if presence channel sync has brief latency
-  const effectiveAdmins = (onlineAdmins && onlineAdmins.length > 0)
-    ? onlineAdmins
-    : (user ? [{
-        id: user.id || user.index_number || user.indexNumber,
-        name: user.full_name || user.name || 'Operator',
-        role: user.role || 'Broadcaster',
-        avatarUrl: user.avatar_url || user.avatarUrl || null,
-        indexNumber: user.index_number || user.indexNumber,
-      }] : []);
+  // Filter out the current user ("myself") so only other online admins are displayed
+  // (The current user already has their own ProfileCard displayed right next to this stack)
+  const currentUserId = user?.id ? String(user.id) : null;
+  const currentIndex = (user?.index_number || user?.indexNumber)
+    ? String(user?.index_number || user?.indexNumber)
+    : null;
 
-  if (effectiveAdmins.length === 0) return null;
+  const otherAdmins = (onlineAdmins || []).filter((admin) => {
+    const adminId = admin.id ? String(admin.id) : null;
+    const adminIndex = (admin.indexNumber || admin.index_number)
+      ? String(admin.indexNumber || admin.index_number)
+      : null;
+
+    const isSelf =
+      (currentUserId && adminId && currentUserId === adminId) ||
+      (currentIndex && adminIndex && currentIndex === adminIndex);
+
+    return !isSelf;
+  });
+
+  if (otherAdmins.length === 0) return null;
 
   const maxAvatars = 3;
-  const displayAdmins = effectiveAdmins.slice(0, maxAvatars);
-  const remaining = effectiveAdmins.length - displayAdmins.length;
+  const displayAdmins = otherAdmins.slice(0, maxAvatars);
+  const remaining = otherAdmins.length - displayAdmins.length;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -65,8 +75,8 @@ export const ActiveAdmins = ({ user, isMobile = false }) => {
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 group transition-all duration-200 focus:outline-none p-1 rounded-full hover:bg-card/40 active:scale-95"
-        title="View Active Admins"
-        aria-label="View Active Admins"
+        title="View Other Active Admins"
+        aria-label="View Other Active Admins"
       >
         <div className="flex -space-x-2">
           {displayAdmins.map((admin, idx) => {
@@ -107,16 +117,14 @@ export const ActiveAdmins = ({ user, isMobile = false }) => {
             <div className="flex items-center gap-2">
               <Users className="w-3.5 h-3.5 text-primary" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Active Admins ({effectiveAdmins.length})
+                Active Admins ({otherAdmins.length})
               </span>
             </div>
           </div>
 
           <div className="max-h-60 overflow-y-auto no-scrollbar px-1.5 space-y-1">
-            {effectiveAdmins.map((admin) => {
+            {otherAdmins.map((admin) => {
               const pic = admin.avatarUrl || admin.avatar_url;
-              const isSelf = String(admin.id) === String(user?.id) || 
-                String(admin.indexNumber) === String(user?.index_number || user?.indexNumber);
 
               return (
                 <div
@@ -130,16 +138,9 @@ export const ActiveAdmins = ({ user, isMobile = false }) => {
                     </div>
 
                     <div className="flex flex-col min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold text-foreground truncate">
-                          {admin.name || 'Admin'}
-                        </span>
-                        {isSelf && (
-                          <span className="text-[9px] font-bold text-primary bg-primary/10 px-1 rounded">
-                            You
-                          </span>
-                        )}
-                      </div>
+                      <span className="text-xs font-semibold text-foreground truncate">
+                        {admin.name || 'Admin'}
+                      </span>
                       <span className="text-[10px] text-muted-foreground truncate">
                         {getRoleLabel(admin.role)}
                       </span>

@@ -7,8 +7,9 @@ import { Button } from '../motion/button';
 function SafeAvatar({ src, name }) {
   const [hasError, setHasError] = useState(false);
   const initial = name ? name.trim().charAt(0).toUpperCase() : 'O';
+  const isSafe = src && typeof src === 'string' && (src.startsWith('https:') || src.startsWith('http:') || src.startsWith('/') || src.startsWith('data:image/'));
 
-  if (src && !hasError) {
+  if (isSafe && !hasError) {
     return (
       <img
         src={src}
@@ -47,7 +48,7 @@ export function ProfileCard({ operator }) {
   const fullName = operator.full_name || operator.name || 'Station Operator';
   const avatarUrl = operator.avatar_url || operator.avatarUrl;
   const roleLabel = getRoleLabel(operator.role);
-  const portalUrl = `${ICMU_PORTAL_URL}/${indexNumber}`;
+  const portalUrl = `${ICMU_PORTAL_URL}/${encodeURIComponent(indexNumber)}`;
 
   return (
     <div className="relative" ref={cardRef}>
@@ -59,7 +60,7 @@ export function ProfileCard({ operator }) {
         title={`${fullName} (${indexNumber})`}
         aria-label="Open Operator Profile"
       >
-        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-card border border-border/50 flex items-center justify-center text-xs font-bold text-foreground shrink-0 relative overflow-hidden shadow-sm group-hover:border-primary/50 group-hover:shadow-[0_0_12px_rgba(var(--primary),0.25)] transition-all">
+        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-card border-2 border-primary/40 flex items-center justify-center text-xs font-bold text-foreground shrink-0 relative overflow-hidden shadow-sm group-hover:border-primary group-hover:ring-2 group-hover:ring-primary/20 group-hover:shadow-[0_0_12px_rgba(var(--primary),0.3)] transition-all">
           <SafeAvatar src={avatarUrl} name={fullName} />
           {/* Active online indicator */}
           <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-background pointer-events-none" />
@@ -71,7 +72,7 @@ export function ProfileCard({ operator }) {
         <div className="absolute right-0 top-full mt-2.5 w-72 sm:w-80 rounded-3xl border border-border/40 bg-card/95 backdrop-blur-2xl shadow-2xl p-4 sm:p-5 z-100 animate-in fade-in zoom-in-95 duration-150">
           {/* User Header */}
           <div className="flex items-center gap-3.5 pb-4 border-b border-border/20">
-            <div className="w-12 h-12 rounded-full bg-primary/10 border border-border/50 flex items-center justify-center text-base font-bold text-foreground shrink-0 relative overflow-hidden shadow-inner">
+            <div className="w-12 h-12 rounded-full bg-primary/10 border-2 border-primary/40 flex items-center justify-center text-base font-bold text-foreground shrink-0 relative overflow-hidden shadow-inner">
               <SafeAvatar src={avatarUrl} name={fullName} />
               <div className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-background pointer-events-none" />
             </div>

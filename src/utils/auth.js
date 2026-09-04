@@ -18,9 +18,10 @@ export const AUTH_COOKIE_KEYS = {
  * Read a cookie by name from document.cookie
  */
 export function getCookie(name) {
-  if (typeof document === 'undefined') return null;
+  if (typeof document === 'undefined' || !name) return null;
   try {
-    const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
+    const escapedName = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = document.cookie.match(new RegExp('(^|;\\s*)' + escapedName + '=([^;]*)'));
     if (!match) return null;
     const decoded = decodeURIComponent(match[2]);
     try {
@@ -59,7 +60,7 @@ export function removeCookie(name) {
 }
 
 /**
- * Decodes URL-safe base64 SSO token
+ * Decodes URL-safe base64 SSO token with UTF-8 safety and schema validation
  */
 export function decodeSsoToken(token) {
   if (!token || typeof token !== 'string') return null;
@@ -68,10 +69,23 @@ export function decodeSsoToken(token) {
     while (base64.length % 4) {
       base64 += '=';
     }
-    const json = decodeURIComponent(escape(atob(base64)));
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const json = new TextDecoder('utf-8').decode(bytes);
     const payload = JSON.parse(json);
-    if (payload.exp && Date.now() > payload.exp) {
-      console.warn('[Auth] SSO token has expired');
+
+    // Schema and expiration validation
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return null;
+    }
+    if (payload.exp && (typeof payload.exp !== 'number' || Date.now() > payload.exp)) {
+      console.warn('[Auth] SSO token has expired or has invalid exp timestamp');
+      return null;
+    }
+    if (!payload.indexNumber && !payload.index_number) {
       return null;
     }
     return payload;

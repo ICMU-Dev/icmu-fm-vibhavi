@@ -4,7 +4,42 @@ import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
 import { getAuthenticatedAdmin } from '../utils/auth';
 
-const MESSAGE_LIFETIME_MS = 12000; // 12 seconds ephemeral lifetime
+const BASE_MESSAGE_LIFETIME_MS = 60000; // 60 seconds base lifetime (extended from 12s)
+const CHAT_ACTIVITY_INCREMENT_MS = 20000; // +20 seconds increment to preserve active conversations
+const MAX_LIFETIME_CEILING_MS = 180000; // 3 minutes maximum ceiling
+
+const calculateMessageLifetime = (text) => {
+  const textBonusMs = Math.min(30000, Math.floor((text || '').length / 10) * 2000);
+  return Math.min(MAX_LIFETIME_CEILING_MS, BASE_MESSAGE_LIFETIME_MS + textBonusMs);
+};
+
+const formatCountdown = (expiresAt, currentTime) => {
+  const diffMs = Math.max(0, expiresAt - currentTime);
+  const totalSeconds = Math.max(1, Math.ceil(diffMs / 1000));
+  if (totalSeconds >= 60) {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins}m ${secs > 0 ? `${secs}s` : ''}`;
+  }
+  return `${totalSeconds}s`;
+};
+
+const MAX_MESSAGE_LENGTH = 160;
+const MIN_SEND_INTERVAL_MS = 1200; // 1.2s cooldown between sends
+const BURST_WINDOW_MS = 10000; // 10s burst window
+const MAX_BURST_COUNT = 4; // Max 4 messages per 10s
+
+function isSafeUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const trimmed = url.trim();
+    if (trimmed.startsWith('/') || trimmed.startsWith('data:image/')) return true;
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
 
 export function AdminLiveChatWidget() {
   const [admin, setAdmin] = useState(() => getAuthenticatedAdmin());
@@ -12,12 +47,27 @@ export function AdminLiveChatWidget() {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [rateLimitWarning, setRateLimitWarning] = useState('');
   const [activePopout, setActivePopout] = useState(null);
   const [now, setNow] = useState(Date.now());
   const channelRef = useRef(null);
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const popoutTimeoutRef = useRef(null);
+  const lastSendTimeRef = useRef(0);
+  const recentSendsRef = useRef([]);
+
+  const hasLongChat = messages.length >= 3 || messages.some(m => (m.text || '').length > 60);
+
+  const handleExtendDuration = () => {
+    const currentTime = Date.now();
+    setMessages(prev =>
+      prev.map(m => ({
+        ...m,
+        expiresAt: Math.min(currentTime + MAX_LIFETIME_CEILING_MS, Math.max(m.expiresAt, currentTime) + 30000)
+      }))
+    );
+  };
 
   // Sync authenticated admin status
   useEffect(() => {
@@ -32,13 +82,14 @@ export function AdminLiveChatWidget() {
     };
   }, []);
 
-  // Tick clock every 500ms for subtle countdown numbers
+  // Performance: Tick clock every 500ms ONLY when active messages or popout exist
   useEffect(() => {
+    if (messages.length === 0 && !activePopout) return;
     const clockInterval = setInterval(() => {
       setNow(Date.now());
     }, 500);
     return () => clearInterval(clockInterval);
-  }, []);
+  }, [messages.length, activePopout]);
 
   // Supabase Realtime Broadcast subscription
   useEffect(() => {
@@ -52,12 +103,21 @@ export function AdminLiveChatWidget() {
       if (!payload || !payload.id) return;
       
       const currentTime = Date.now();
-      const expiresAt = currentTime + MESSAGE_LIFETIME_MS;
+      const lifetime = calculateMessageLifetime(payload.text);
+      const expiresAt = payload.expiresAt && payload.expiresAt > currentTime
+        ? payload.expiresAt
+        : currentTime + lifetime;
+
       const newMsg = { ...payload, receivedAt: currentTime, expiresAt };
 
       setMessages(prev => {
-        if (prev.some(m => m.id === payload.id)) return prev;
-        return [...prev, newMsg];
+        // Extend existing active messages so the active thread is preserved!
+        const extended = prev.map(m => ({
+          ...m,
+          expiresAt: Math.min(currentTime + MAX_LIFETIME_CEILING_MS, Math.max(m.expiresAt, currentTime + CHAT_ACTIVITY_INCREMENT_MS))
+        }));
+        if (extended.some(m => m.id === payload.id)) return extended;
+        return [...extended, newMsg];
       });
 
       // Pop out message NEXT to the FAB if the chat is currently closed
@@ -67,7 +127,7 @@ export function AdminLiveChatWidget() {
           if (popoutTimeoutRef.current) clearTimeout(popoutTimeoutRef.current);
           popoutTimeoutRef.current = setTimeout(() => {
             setActivePopout(null);
-          }, MESSAGE_LIFETIME_MS);
+          }, Math.min(30000, lifetime)); // Stays visible up to 30s next to FAB
         }
         return currentIsOpen;
       });
@@ -86,7 +146,7 @@ export function AdminLiveChatWidget() {
     };
   }, [admin]);
 
-  // Ephemeral garbage collector (purges messages older than 12s)
+  // Ephemeral garbage collector (purges expired messages)
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
       const currentTime = Date.now();
@@ -101,7 +161,7 @@ export function AdminLiveChatWidget() {
         }
         return prev;
       });
-    }, 300);
+    }, 500);
 
     return () => clearInterval(cleanupInterval);
   }, []);
@@ -127,25 +187,64 @@ export function AdminLiveChatWidget() {
 
   const handleSendMessage = async (e) => {
     e?.preventDefault();
-    const text = inputMessage.trim();
-    if (!text || isSending || !admin) return;
+    setRateLimitWarning('');
+    const rawText = inputMessage.trim();
+    if (!rawText || isSending || !admin) return;
+
+    // Rate Limit 1: Minimum cooldown between messages (1.2s)
+    const currentTime = Date.now();
+    if (currentTime - lastSendTimeRef.current < MIN_SEND_INTERVAL_MS) {
+      setRateLimitWarning('Please wait 1s before transmitting again.');
+      setTimeout(() => setRateLimitWarning(''), 2500);
+      return;
+    }
+
+    // Rate Limit 2: Burst protection (max 4 messages in 10s)
+    recentSendsRef.current = recentSendsRef.current.filter(t => currentTime - t < BURST_WINDOW_MS);
+    if (recentSendsRef.current.length >= MAX_BURST_COUNT) {
+      setRateLimitWarning('Rate limit reached (max 4 messages / 10s).');
+      setTimeout(() => setRateLimitWarning(''), 3000);
+      return;
+    }
+
+    // Input sanitization: strip control characters and clamp length
+    const sanitizedText = rawText
+      .replace(/[\u0000-\u0008\u000B-\u000C\u000E-\u001F]/g, '')
+      .slice(0, MAX_MESSAGE_LENGTH)
+      .trim();
+
+    if (!sanitizedText) return;
+
+    lastSendTimeRef.current = currentTime;
+    recentSendsRef.current.push(currentTime);
 
     setIsSending(true);
-    const currentTime = Date.now();
+    const lifetime = calculateMessageLifetime(sanitizedText);
+    const expiresAt = currentTime + lifetime;
+
+    const rawAvatar = admin.avatar_url || admin.avatarUrl || null;
+    const safeAvatar = isSafeUrl(rawAvatar) ? rawAvatar : null;
+
     const msgId = `${admin.index_number || admin.id || 'admin'}-${currentTime}-${Math.random().toString(36).slice(2, 6)}`;
     const payload = {
       id: msgId,
-      senderName: admin.full_name || admin.name || 'Master Admin',
-      senderRole: admin.role || 'Broadcaster',
-      senderAvatar: admin.avatar_url || admin.avatarUrl || null,
-      senderIndex: admin.index_number || admin.indexNumber || '',
-      text,
+      senderName: String(admin.full_name || admin.name || 'Master Admin').slice(0, 48),
+      senderRole: String(admin.role || 'Broadcaster').slice(0, 32),
+      senderAvatar: safeAvatar,
+      senderIndex: String(admin.index_number || admin.indexNumber || '').slice(0, 20),
+      text: sanitizedText,
       timestamp: currentTime,
-      expiresAt: currentTime + MESSAGE_LIFETIME_MS
+      expiresAt
     };
 
-    // Optimistically add to local messages
-    setMessages(prev => [...prev, payload]);
+    // Optimistically add to local messages and extend existing messages by activity increment
+    setMessages(prev => {
+      const extended = prev.map(m => ({
+        ...m,
+        expiresAt: Math.min(currentTime + MAX_LIFETIME_CEILING_MS, Math.max(m.expiresAt, currentTime + CHAT_ACTIVITY_INCREMENT_MS))
+      }));
+      return [...extended, payload];
+    });
     setInputMessage('');
 
     try {
@@ -180,19 +279,19 @@ export function AdminLiveChatWidget() {
               setIsOpen(true);
               setActivePopout(null);
             }}
-            className="absolute right-15 bottom-0 w-72 sm:w-84 bg-card/95 backdrop-blur-2xl border border-primary/50 rounded-2xl rounded-br-xs p-3.5 shadow-2xl cursor-pointer hover:border-primary transition-all flex flex-col space-y-2 group"
+            className="absolute right-14 sm:right-15 bottom-0 w-[calc(100vw-5rem)] max-w-72 sm:max-w-84 bg-card/95 backdrop-blur-2xl border border-primary/50 rounded-2xl rounded-br-xs p-3 sm:p-3.5 shadow-2xl cursor-pointer hover:border-primary transition-all flex flex-col space-y-2 group"
           >
             {/* Popout Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 min-w-0">
-                <div className="w-6 h-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shrink-0 text-primary font-bold text-[10px]">
-                  {activePopout.senderAvatar ? (
+                <div className="w-6 h-6 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center shrink-0 text-primary font-bold text-[10px] overflow-hidden">
+                  {activePopout.senderAvatar && isSafeUrl(activePopout.senderAvatar) ? (
                     <img src={activePopout.senderAvatar} alt="" className="w-full h-full rounded-full object-cover" />
                   ) : (
                     activePopout.senderName.slice(0, 2).toUpperCase()
                   )}
                 </div>
-                <span className="text-xs font-bold text-foreground truncate">{activePopout.senderName}</span>
+                <span className="text-xs font-bold text-foreground truncate max-w-28 sm:max-w-36">{activePopout.senderName}</span>
                 <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-muted-foreground uppercase shrink-0">
                   {activePopout.senderRole}
                 </span>
@@ -202,13 +301,13 @@ export function AdminLiveChatWidget() {
               <div className="flex items-center space-x-1 shrink-0 ml-1.5">
                 <Clock className="w-3 h-3 text-primary/60" />
                 <span className="text-[10px] font-mono font-bold text-primary tabular-nums">
-                  {Math.max(1, Math.ceil((activePopout.expiresAt - now) / 1000))}s
+                  {formatCountdown(activePopout.expiresAt, now)}
                 </span>
               </div>
             </div>
 
-            {/* Popout Message Content */}
-            <p className="text-xs text-foreground/95 font-medium line-clamp-2 leading-relaxed pl-1">
+            {/* Popout Message Content with Text Wrapping */}
+            <p className="text-xs text-foreground/95 font-medium line-clamp-3 leading-relaxed pl-1 break-words [overflow-wrap:anywhere] whitespace-pre-wrap">
               {activePopout.text}
             </p>
 
@@ -228,7 +327,7 @@ export function AdminLiveChatWidget() {
         layout
         animate={{
           borderRadius: isOpen ? 24 : 9999,
-          width: isOpen ? 'min(92vw, 390px)' : 52,
+          width: isOpen ? 'min(calc(100vw - 1.5rem), 400px)' : 52,
           height: isOpen ? 'auto' : 52
         }}
         transition={{
@@ -236,8 +335,8 @@ export function AdminLiveChatWidget() {
           stiffness: 420,
           damping: 32
         }}
-        className={`bg-card/95 backdrop-blur-2xl border shadow-(--shadow-ultimate) overflow-hidden ${
-          isOpen ? 'border-border/60 p-4 sm:p-5' : 'border-primary/40 p-0 flex items-center justify-center cursor-pointer hover:border-primary hover:scale-105 active:scale-95 transition-transform'
+        className={`bg-card/95 backdrop-blur-2xl border shadow-(--shadow-ultimate) overflow-hidden max-h-[min(85dvh,620px)] flex flex-col ${
+          isOpen ? 'border-border/60 p-3.5 sm:p-5' : 'border-primary/40 p-0 flex items-center justify-center cursor-pointer hover:border-primary hover:scale-105 active:scale-95 transition-transform'
         }`}
       >
         <AnimatePresence mode="wait">
@@ -267,17 +366,38 @@ export function AdminLiveChatWidget() {
                     </h3>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="w-7 h-7 rounded-full bg-foreground/10 hover:bg-foreground/20 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  {messages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleExtendDuration}
+                      title="Extend message timers (+30s)"
+                      className="px-2 py-0.5 rounded-full bg-primary/10 hover:bg-primary/20 border border-primary/25 text-primary text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <span>+30s</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    aria-label="Close"
+                    className="w-7 h-7 rounded-full bg-foreground/10 hover:bg-foreground/20 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
-              {/* Message Feed with Generous Space & True Chat Bubbles */}
-              <div className="py-3.5 flex flex-col space-y-3 max-h-76 sm:max-h-84 overflow-y-auto no-scrollbar min-h-40">
+              {/* Message Feed with Dynamic Height & True Chat Bubbles */}
+              <div
+                className={`py-3 flex flex-col space-y-3 overflow-y-auto no-scrollbar transition-all duration-300 ${
+                  messages.length === 0
+                    ? 'min-h-36 max-h-48'
+                    : hasLongChat
+                    ? 'min-h-60 max-h-[min(65dvh,480px)] sm:max-h-[500px]'
+                    : 'min-h-44 max-h-[min(52dvh,380px)] sm:max-h-[420px]'
+                }`}
+              >
                 <AnimatePresence initial={false}>
                   {messages.length === 0 ? (
                     <motion.div
@@ -290,13 +410,13 @@ export function AdminLiveChatWidget() {
                       <Radio className="w-7 h-7 text-primary/40 animate-pulse" />
                       <p className="text-xs font-semibold text-foreground/80">No Active Transmissions</p>
                       <p className="text-[11px] text-muted-foreground/70 max-w-64 leading-relaxed">
-                        Messages broadcast live to other admins and disappear after a few seconds.
+                        Messages broadcast live to other admins and disappear after a short while.
                       </p>
                     </motion.div>
                   ) : (
                     messages.map((msg) => {
                       const isMe = (admin.index_number || admin.id) === msg.senderIndex;
-                      const secondsLeft = Math.max(1, Math.ceil((msg.expiresAt - now) / 1000));
+                      const timeString = formatCountdown(msg.expiresAt, now);
 
                       return (
                         <motion.div
@@ -305,12 +425,12 @@ export function AdminLiveChatWidget() {
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.92, filter: 'blur(2px)' }}
                           transition={{ duration: 0.22 }}
-                          className={`flex items-start gap-2.5 ${isMe ? 'flex-row-reverse self-end' : 'self-start'} max-w-[88%]`}
+                          className={`flex items-start gap-2 sm:gap-2.5 ${isMe ? 'flex-row-reverse self-end' : 'self-start'} max-w-[92%] sm:max-w-[85%]`}
                         >
                           {/* Avatar for Incoming Messages */}
                           {!isMe && (
-                            <div className="w-7 h-7 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shrink-0 text-primary font-bold text-[10px] mt-1 shadow-sm">
-                              {msg.senderAvatar ? (
+                            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center shrink-0 text-primary font-bold text-[9px] sm:text-[10px] mt-1 shadow-sm overflow-hidden">
+                              {msg.senderAvatar && isSafeUrl(msg.senderAvatar) ? (
                                 <img src={msg.senderAvatar} alt="" className="w-full h-full rounded-full object-cover" />
                               ) : (
                                 msg.senderName.slice(0, 2).toUpperCase()
@@ -319,11 +439,11 @@ export function AdminLiveChatWidget() {
                           )}
 
                           {/* Outer Column: Nametag above, Chat Bubble below */}
-                          <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} min-w-28`}>
+                          <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} min-w-0 max-w-full`}>
                             {/* OUTER NAMETAG (Above the Bubble) */}
-                            <div className={`flex items-center gap-1.5 mb-1 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`flex items-center gap-1.5 mb-1 px-1 ${isMe ? 'justify-end' : 'justify-start'} max-w-full overflow-hidden`}>
                               {!isMe && (
-                                <span className="font-bold text-[11px] text-foreground/90 truncate max-w-36">
+                                <span className="font-bold text-[11px] text-foreground/90 truncate max-w-28 sm:max-w-36">
                                   {msg.senderName}
                                 </span>
                               )}
@@ -333,20 +453,20 @@ export function AdminLiveChatWidget() {
                               </span>
 
                               {/* Subtle Number Duration */}
-                              <span className="text-[9px] font-mono font-medium text-muted-foreground/60 tabular-nums ml-0.5">
-                                {secondsLeft}s
+                              <span className="text-[9px] font-mono font-medium text-muted-foreground/60 tabular-nums ml-0.5 shrink-0">
+                                {timeString}
                               </span>
                             </div>
 
-                            {/* CHAT BUBBLE (Clean text only) */}
+                            {/* CHAT BUBBLE with complete text wrapping */}
                             <div
-                              className={`rounded-2xl p-3 shadow-md backdrop-blur-md ${
+                              className={`rounded-2xl p-2.5 sm:p-3 shadow-md backdrop-blur-md max-w-full break-words [overflow-wrap:anywhere] ${
                                 isMe
-                                  ? 'bg-linear-to-br from-primary/20 via-primary/15 to-primary/10 border border-primary/40 rounded-tr-xs text-right'
+                                  ? 'bg-linear-to-br from-primary/20 via-primary/15 to-primary/10 border border-primary/40 rounded-tr-xs text-left'
                                   : 'bg-background/80 border border-border/30 rounded-tl-xs text-left'
                               }`}
                             >
-                              <p className="text-xs sm:text-[13px] text-foreground font-normal break-words leading-relaxed">
+                              <p className="text-xs sm:text-[13px] text-foreground font-normal break-words [overflow-wrap:anywhere] whitespace-pre-wrap leading-relaxed">
                                 {msg.text}
                               </p>
                             </div>
@@ -359,8 +479,15 @@ export function AdminLiveChatWidget() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Box with Comfortable Spacing */}
-              <form onSubmit={handleSendMessage} className="pt-3 border-t border-white/5 flex items-center gap-2">
+              {/* Rate Limit Notice */}
+              {rateLimitWarning && (
+                <div className="px-2 py-1 mb-1 rounded-lg bg-destructive/15 border border-destructive/30 text-[10px] text-destructive font-bold animate-pulse">
+                  {rateLimitWarning}
+                </div>
+              )}
+
+              {/* Input Box with Comfortable Spacing and Mobile-Friendly Font Size */}
+              <form onSubmit={handleSendMessage} className="pt-2.5 border-t border-white/5 flex items-center gap-2">
                 <input
                   ref={inputRef}
                   type="text"
@@ -368,12 +495,12 @@ export function AdminLiveChatWidget() {
                   onChange={(e) => setInputMessage(e.target.value)}
                   placeholder="Type temporary live note..."
                   maxLength={160}
-                  className="flex-1 bg-background/70 border border-border/30 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary/60 transition-colors shadow-inner"
+                  className="flex-1 bg-background/70 border border-border/30 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-[14px] sm:text-xs text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary/60 transition-colors shadow-inner min-w-0"
                 />
                 <button
                   type="submit"
                   disabled={!inputMessage.trim() || isSending}
-                  className="h-9 px-3.5 rounded-xl bg-primary text-black font-bold text-xs flex items-center justify-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 active:scale-95 transition-all shadow-[0_0_12px_rgba(var(--primary),0.4)] cursor-pointer shrink-0"
+                  className="h-8.5 sm:h-9 px-3 sm:px-3.5 rounded-xl bg-primary text-black font-bold text-xs flex items-center justify-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 active:scale-95 transition-all shadow-[0_0_12px_rgba(var(--primary),0.4)] cursor-pointer shrink-0"
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>
@@ -391,8 +518,6 @@ export function AdminLiveChatWidget() {
               <div className="relative flex items-center justify-center">
                 <Radio className="w-5 h-5 text-primary drop-shadow-[0_0_8px_rgba(var(--primary),0.8)] transition-transform group-hover:scale-110" />
                 <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                 </span>
               </div>
 

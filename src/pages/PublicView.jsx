@@ -76,11 +76,16 @@ export function PublicView() {
     }, [isBroadcasting, isPlaying, pause]);
 
     const prevBroadcastingRef = useRef(isBroadcasting);
+    const lastBroadcastReloadRef = useRef(0);
 
-    // Brute-force hard refresh if station comes back online to guarantee pristine state
+    // Guarded reload when station comes back online (throttled to max once per 60s)
     useEffect(() => {
         if (prevBroadcastingRef.current === false && isBroadcasting === true) {
-            window.location.reload();
+            const now = Date.now();
+            if (now - lastBroadcastReloadRef.current > 60000) {
+                lastBroadcastReloadRef.current = now;
+                window.location.reload();
+            }
         }
         prevBroadcastingRef.current = isBroadcasting;
     }, [isBroadcasting]);

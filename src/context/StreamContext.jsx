@@ -123,13 +123,13 @@ export const StreamProvider = ({ children }) => {
                 if (status === 'SUBSCRIBED') {
                     setDbError(null);
                 } else if (status === 'CHANNEL_ERROR') {
-                    console.warn('[Realtime] Subscription channel error encountered');
+                    console.warn('[Realtime] Subscription channel error encountered. Retrying subscription...');
                     setDbError('Realtime sync connection interrupted. Reconnecting...');
                     setTimeout(() => {
-                        if (typeof window !== 'undefined' && navigator.onLine) {
-                            window.location.reload();
+                        if (channel && supabase) {
+                            channel.subscribe();
                         }
-                    }, 4000);
+                    }, 5000);
                 }
             });
 
@@ -230,23 +230,43 @@ const extractRadioId = (url) => {
     }
 };
 
-    // Track metadata polling (RadioKing API support with cache-busting & timeline sync)
+    // Track metadata polling (RadioKing API support with rate limiting, background backoff & AbortController)
     useEffect(() => {
         let interval;
-        const fetchTrack = async () => {
+        let abortController = null;
+        let lastFetchTime = 0;
+        let isFetching = false;
+        const MIN_FETCH_GAP_MS = 4000; // 4s minimum throttle on focus/visibility
+
+        const fetchTrack = async (isManualEvent = false) => {
             if (!isBroadcastingState || !streamUrl) {
                 setCurrentTrack(null);
                 return;
             }
+
+            const now = Date.now();
+            if (isManualEvent && (now - lastFetchTime < MIN_FETCH_GAP_MS || isFetching)) {
+                return; // Throttled
+            }
+
+            if (isFetching) return;
+            isFetching = true;
+            lastFetchTime = now;
+
+            if (abortController) {
+                abortController.abort();
+            }
+            abortController = new AbortController();
+            const { signal } = abortController;
+
             try {
                 if (streamUrl.includes('radioking.io')) {
                     const radioId = extractRadioId(streamUrl);
                     if (!radioId) return;
 
-                    const now = Date.now();
                     const cacheBuster = `_t=${now}`;
 
-                    const res = await fetch(`https://api.radioking.io/widget/radio/${radioId}/track/current?${cacheBuster}`);
+                    const res = await fetch(`https://api.radioking.io/widget/radio/${radioId}/track/current?${cacheBuster}`, { signal });
                     if (res.ok) {
                         const data = await res.json();
                         const endAtTime = data.end_at ? new Date(data.end_at).getTime() : null;
@@ -255,7 +275,7 @@ const extractRadioId = (url) => {
                         // If RadioKing current track is expired past end_at, cross-check next playlist
                         if (isExpired) {
                             try {
-                                const nextRes = await fetch(`https://api.radioking.io/widget/radio/${radioId}/track/next?${cacheBuster}`);
+                                const nextRes = await fetch(`https://api.radioking.io/widget/radio/${radioId}/track/next?${cacheBuster}`, { signal });
                                 if (nextRes.ok) {
                                     const nextList = await nextRes.json();
                                     if (Array.isArray(nextList) && nextList.length > 0) {
@@ -285,7 +305,7 @@ const extractRadioId = (url) => {
 
                     // Fetch real-time active listener count from RadioKing
                     try {
-                        const listenerRes = await fetch(`https://api.radioking.io/widget/radio/${radioId}/listener?${cacheBuster}`);
+                        const listenerRes = await fetch(`https://api.radioking.io/widget/radio/${radioId}/listener?${cacheBuster}`, { signal });
                         if (listenerRes.ok) {
                             const listenerData = await listenerRes.json();
                             if (typeof listenerData.listener_count === 'number') {
@@ -295,21 +315,34 @@ const extractRadioId = (url) => {
                     } catch (_) {}
                 }
             } catch (e) {
-                console.error("Failed to fetch track/listener data:", e);
+                if (e.name !== 'AbortError') {
+                    console.error("Failed to fetch track/listener data:", e);
+                }
+            } finally {
+                isFetching = false;
             }
         };
 
         if (isBroadcastingState) {
             fetchTrack();
-            interval = setInterval(fetchTrack, 8000); // Poll every 8s
+
+            const setupInterval = () => {
+                clearInterval(interval);
+                // Rate Limiting Optimization: Back off polling interval when tab is in background
+                const pollIntervalMs = typeof document !== 'undefined' && document.hidden ? 35000 : 10000;
+                interval = setInterval(fetchTrack, pollIntervalMs);
+            };
+
+            setupInterval();
 
             const handleVisibilityChange = () => {
+                setupInterval();
                 if (document.visibilityState === 'visible') {
-                    fetchTrack();
+                    fetchTrack(true);
                 }
             };
             const handleFocus = () => {
-                fetchTrack();
+                fetchTrack(true);
             };
 
             document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -317,6 +350,7 @@ const extractRadioId = (url) => {
 
             return () => {
                 clearInterval(interval);
+                if (abortController) abortController.abort();
                 document.removeEventListener('visibilitychange', handleVisibilityChange);
                 window.removeEventListener('focus', handleFocus);
             };
@@ -325,7 +359,10 @@ const extractRadioId = (url) => {
             setListenerCount(0);
         }
 
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            if (abortController) abortController.abort();
+        };
     }, [isBroadcastingState, streamUrl]);
 
     return (

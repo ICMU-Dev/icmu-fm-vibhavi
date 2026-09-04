@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 let globalAdmins = [];
 let subscribers = new Set();
 let channel = null;
+const avatarCache = new Map();
 
 const notifySubscribers = () => {
   subscribers.forEach((fn) => fn([...globalAdmins]));
@@ -28,20 +29,32 @@ export const useAdminPresence = (user) => {
           const state = channel.presenceState();
           const admins = Object.values(state).flatMap((p) => p);
 
-          // Fetch latest avatar_url from Supabase users table safely
-          const adminIds = admins.map((a) => a.id).filter(Boolean);
-          if (adminIds.length > 0) {
+          // Populate from cache if known
+          admins.forEach((a) => {
+            if (!a.avatarUrl && a.id && avatarCache.has(a.id)) {
+              a.avatarUrl = avatarCache.get(a.id);
+            }
+          });
+
+          // Fetch only missing avatar_urls from Supabase users table safely
+          const missingIds = admins
+            .map((a) => a.id)
+            .filter((id) => Boolean(id) && !avatarCache.has(id));
+
+          if (missingIds.length > 0) {
             try {
               const { data: dbUsers, error } = await supabase
                 .from('users')
                 .select('id, avatar_url')
-                .in('id', adminIds);
+                .in('id', missingIds);
 
               if (!error && dbUsers) {
+                dbUsers.forEach((u) => {
+                  if (u.id) avatarCache.set(u.id, u.avatar_url);
+                });
                 admins.forEach((a) => {
-                  const dbU = dbUsers.find((u) => u.id === a.id);
-                  if (dbU) {
-                    a.avatarUrl = a.avatarUrl || dbU.avatar_url || null;
+                  if (!a.avatarUrl && a.id && avatarCache.has(a.id)) {
+                    a.avatarUrl = avatarCache.get(a.id);
                   }
                 });
               }
