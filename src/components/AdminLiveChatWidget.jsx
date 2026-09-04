@@ -307,7 +307,7 @@ export function AdminLiveChatWidget() {
             </div>
 
             {/* Popout Message Content with Text Wrapping */}
-            <p className="text-xs text-foreground/95 font-medium line-clamp-3 leading-relaxed pl-1 break-words [overflow-wrap:anywhere] whitespace-pre-wrap">
+            <p className="text-xs text-foreground/95 font-medium line-clamp-3 leading-relaxed pl-1 wrap-break-word whitespace-pre-wrap">
               {activePopout.text}
             </p>
 
@@ -394,8 +394,8 @@ export function AdminLiveChatWidget() {
                   messages.length === 0
                     ? 'min-h-36 max-h-48'
                     : hasLongChat
-                    ? 'min-h-60 max-h-[min(65dvh,480px)] sm:max-h-[500px]'
-                    : 'min-h-44 max-h-[min(52dvh,380px)] sm:max-h-[420px]'
+                    ? 'min-h-60 max-h-[min(65dvh,480px)] sm:max-h-125'
+                    : 'min-h-44 max-h-[min(52dvh,380px)] sm:max-h-105'
                 }`}
               >
                 <AnimatePresence initial={false}>
@@ -460,13 +460,13 @@ export function AdminLiveChatWidget() {
 
                             {/* CHAT BUBBLE with complete text wrapping */}
                             <div
-                              className={`rounded-2xl p-2.5 sm:p-3 shadow-md backdrop-blur-md max-w-full break-words [overflow-wrap:anywhere] ${
+                              className={`rounded-2xl p-2.5 sm:p-3 shadow-md backdrop-blur-md max-w-full wrap-break-word ${
                                 isMe
                                   ? 'bg-linear-to-br from-primary/20 via-primary/15 to-primary/10 border border-primary/40 rounded-tr-xs text-left'
                                   : 'bg-background/80 border border-border/30 rounded-tl-xs text-left'
                               }`}
                             >
-                              <p className="text-xs sm:text-[13px] text-foreground font-normal break-words [overflow-wrap:anywhere] whitespace-pre-wrap leading-relaxed">
+                              <p className="text-xs sm:text-[13px] text-foreground font-normal wrap-break-word whitespace-pre-wrap leading-relaxed">
                                 {msg.text}
                               </p>
                             </div>
