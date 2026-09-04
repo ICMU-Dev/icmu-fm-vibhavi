@@ -6,6 +6,7 @@ import { NotFoundPage } from '../../pages/NotFoundPage';
 import { Loader } from '../motion/loader';
 import { ShieldAlert, ArrowLeft, Radio, ExternalLink, RefreshCw } from 'lucide-react';
 import { AnimatedBadge } from '../motion/animated-badge';
+import { ICMU_PORTAL_URL } from '../../utils/constants';
 
 export function AdminRouteGuard() {
   const { indexNumber } = useParams();
@@ -92,10 +93,7 @@ export function AdminRouteGuard() {
   }
 
   if (!authorized) {
-    const portalUrl =
-      typeof window !== 'undefined' && window.location.hostname === 'localhost'
-        ? 'http://localhost:5173'
-        : 'https://dev.isipathanacollegemediaunit.com';
+    const portalUrl = ICMU_PORTAL_URL;
 
     return (
       <div className="min-h-dvh w-full bg-background flex flex-col items-center justify-center px-4 py-8 relative overflow-hidden font-sans text-foreground">

@@ -1,0 +1,1 @@
+export const ICMU_PORTAL_URL = typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5173' : 'https://isipathanamedia.online';

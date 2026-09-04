@@ -3,13 +3,11 @@ import { Link } from 'react-router-dom';
 import { Radio, ArrowLeft, RadioReceiver, ExternalLink, Disc3 } from 'lucide-react';
 import { Logo } from '../components/Logo';
 import { getCookie, AUTH_COOKIE_KEYS } from '../utils/auth';
+import { ICMU_PORTAL_URL } from '../utils/constants';
 
 export function NotFoundPage() {
   const userIndex = getCookie(AUTH_COOKIE_KEYS.USER_INDEX);
-  const portalUrl =
-    typeof window !== 'undefined' && window.location.hostname === 'localhost'
-      ? 'http://localhost:5173'
-      : 'https://dev.isipathanacollegemediaunit.com';
+  const portalUrl = ICMU_PORTAL_URL;
 
   return (
     <div className="h-dvh w-full font-sans relative overflow-hidden flex flex-col items-center justify-center p-6 bg-background text-foreground">

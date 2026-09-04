@@ -11,6 +11,7 @@ import { CenterMorphModal, CenterMorphModalContent } from '../components/motion/
 import { Button } from '../components/motion/button/base';
 import { Logo } from '../components/Logo';
 import { getRoleLabel } from '../utils/auth';
+import { ICMU_PORTAL_URL } from '../utils/constants';
 
 export function AdminDashboard({ operator = null }) {
   const { streamUrl, setStreamUrl, connectionState, bitrate, bufferHealth, uptime, listenerCount, isBroadcasting, currentTrack, dbError, setDbError } = useStream();
@@ -150,11 +151,7 @@ export function AdminDashboard({ operator = null }) {
         )}
 
         <a
-          href={
-            typeof window !== "undefined" && window.location.hostname === "localhost"
-              ? `http://localhost:5173/${activeOperator?.index_number || activeOperator?.indexNumber || ""}`
-              : `https://dev.isipathanacollegemediaunit.com/${activeOperator?.index_number || activeOperator?.indexNumber || ""}`
-          }
+          href={`${ICMU_PORTAL_URL}/${activeOperator?.index_number || activeOperator?.indexNumber || ""}`}
           className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-card/60 hover:bg-card border border-border/30 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-all shadow-sm active:scale-95 backdrop-blur-md"
           title="Return to ICMU Admin Hub">
           <span className="text-[10px]">ICMU Hub</span>
