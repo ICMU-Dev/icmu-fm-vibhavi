@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, X, Send, Radio, User, Clock, ShieldCheck, Volume2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { MessageSquare, X, Send, Radio, User, Clock, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
 import { getAuthenticatedAdmin } from '../utils/auth';
@@ -12,10 +12,12 @@ export function AdminLiveChatWidget() {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [recentToast, setRecentToast] = useState(null);
+  const [activePopout, setActivePopout] = useState(null);
+  const [now, setNow] = useState(Date.now());
   const channelRef = useRef(null);
   const inputRef = useRef(null);
-  const toastTimeoutRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  const popoutTimeoutRef = useRef(null);
 
   // Sync authenticated admin status
   useEffect(() => {
@@ -30,6 +32,14 @@ export function AdminLiveChatWidget() {
     };
   }, []);
 
+  // Tick clock every 500ms for subtle countdown numbers
+  useEffect(() => {
+    const clockInterval = setInterval(() => {
+      setNow(Date.now());
+    }, 500);
+    return () => clearInterval(clockInterval);
+  }, []);
+
   // Supabase Realtime Broadcast subscription
   useEffect(() => {
     if (!admin) return;
@@ -41,24 +51,23 @@ export function AdminLiveChatWidget() {
     channel.on('broadcast', { event: 'admin_message' }, ({ payload }) => {
       if (!payload || !payload.id) return;
       
-      const now = Date.now();
-      const expiresAt = now + MESSAGE_LIFETIME_MS;
-      const newMsg = { ...payload, receivedAt: now, expiresAt };
+      const currentTime = Date.now();
+      const expiresAt = currentTime + MESSAGE_LIFETIME_MS;
+      const newMsg = { ...payload, receivedAt: currentTime, expiresAt };
 
       setMessages(prev => {
-        // Keep unique messages
         if (prev.some(m => m.id === payload.id)) return prev;
         return [...prev, newMsg];
       });
 
-      // Show toast if widget is closed
+      // Pop out message NEXT to the FAB if the chat is currently closed
       setIsOpen(currentIsOpen => {
         if (!currentIsOpen) {
-          setRecentToast(newMsg);
-          if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-          toastTimeoutRef.current = setTimeout(() => {
-            setRecentToast(null);
-          }, 5000);
+          setActivePopout(newMsg);
+          if (popoutTimeoutRef.current) clearTimeout(popoutTimeoutRef.current);
+          popoutTimeoutRef.current = setTimeout(() => {
+            setActivePopout(null);
+          }, MESSAGE_LIFETIME_MS);
         }
         return currentIsOpen;
       });
@@ -71,7 +80,7 @@ export function AdminLiveChatWidget() {
     });
 
     return () => {
-      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      if (popoutTimeoutRef.current) clearTimeout(popoutTimeoutRef.current);
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
@@ -80,24 +89,41 @@ export function AdminLiveChatWidget() {
   // Ephemeral garbage collector (purges messages older than 12s)
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
-      const now = Date.now();
+      const currentTime = Date.now();
       setMessages(prev => {
-        const remaining = prev.filter(m => m.expiresAt > now);
+        const remaining = prev.filter(m => m.expiresAt > currentTime);
         return remaining.length === prev.length ? prev : remaining;
+      });
+
+      setActivePopout(prev => {
+        if (prev && prev.expiresAt <= currentTime) {
+          return null;
+        }
+        return prev;
       });
     }, 300);
 
     return () => clearInterval(cleanupInterval);
   }, []);
 
-  // Focus input when panel opens
+  // Focus input and scroll to bottom when panel opens
   useEffect(() => {
     if (isOpen) {
-      setRecentToast(null);
-      const t = setTimeout(() => inputRef.current?.focus(), 200);
+      setActivePopout(null);
+      const t = setTimeout(() => {
+        inputRef.current?.focus();
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 200);
       return () => clearTimeout(t);
     }
   }, [isOpen]);
+
+  // Auto-scroll on new message if open
+  useEffect(() => {
+    if (isOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages.length, isOpen]);
 
   const handleSendMessage = async (e) => {
     e?.preventDefault();
@@ -105,8 +131,8 @@ export function AdminLiveChatWidget() {
     if (!text || isSending || !admin) return;
 
     setIsSending(true);
-    const now = Date.now();
-    const msgId = `${admin.index_number || admin.id || 'admin'}-${now}-${Math.random().toString(36).slice(2, 6)}`;
+    const currentTime = Date.now();
+    const msgId = `${admin.index_number || admin.id || 'admin'}-${currentTime}-${Math.random().toString(36).slice(2, 6)}`;
     const payload = {
       id: msgId,
       senderName: admin.full_name || admin.name || 'Master Admin',
@@ -114,8 +140,8 @@ export function AdminLiveChatWidget() {
       senderAvatar: admin.avatar_url || admin.avatarUrl || null,
       senderIndex: admin.index_number || admin.indexNumber || '',
       text,
-      timestamp: now,
-      expiresAt: now + MESSAGE_LIFETIME_MS
+      timestamp: currentTime,
+      expiresAt: currentTime + MESSAGE_LIFETIME_MS
     };
 
     // Optimistically add to local messages
@@ -142,33 +168,56 @@ export function AdminLiveChatWidget() {
 
   return (
     <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 pointer-events-auto select-none font-sans">
-      {/* Toast Notification when closed */}
+      {/* Live Speech Bubble Popout NEXT to the FAB when closed */}
       <AnimatePresence>
-        {!isOpen && recentToast && (
+        {!isOpen && activePopout && (
           <motion.div
-            initial={{ opacity: 0, y: 15, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.9 }}
-            transition={{ duration: 0.25 }}
+            initial={{ opacity: 0, x: 20, scale: 0.9 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 15, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 450, damping: 28 }}
             onClick={() => {
               setIsOpen(true);
-              setRecentToast(null);
+              setActivePopout(null);
             }}
-            className="absolute bottom-16 right-0 w-72 sm:w-80 bg-card/95 backdrop-blur-xl border border-primary/40 rounded-2xl p-3 shadow-2xl cursor-pointer hover:border-primary transition-colors flex items-start space-x-3 mb-2"
+            className="absolute right-15 bottom-0 w-72 sm:w-84 bg-card/95 backdrop-blur-2xl border border-primary/50 rounded-2xl rounded-br-xs p-3.5 shadow-2xl cursor-pointer hover:border-primary transition-all flex flex-col space-y-2 group"
           >
-            <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shrink-0 text-primary font-bold text-xs mt-0.5">
-              {recentToast.senderAvatar ? (
-                <img src={recentToast.senderAvatar} alt="" className="w-full h-full rounded-full object-cover" />
-              ) : (
-                recentToast.senderName.slice(0, 2).toUpperCase()
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-foreground truncate">{recentToast.senderName}</span>
-                <span className="text-[10px] uppercase font-bold text-primary tracking-wider">Live Note</span>
+            {/* Popout Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 min-w-0">
+                <div className="w-6 h-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shrink-0 text-primary font-bold text-[10px]">
+                  {activePopout.senderAvatar ? (
+                    <img src={activePopout.senderAvatar} alt="" className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    activePopout.senderName.slice(0, 2).toUpperCase()
+                  )}
+                </div>
+                <span className="text-xs font-bold text-foreground truncate">{activePopout.senderName}</span>
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-muted-foreground uppercase shrink-0">
+                  {activePopout.senderRole}
+                </span>
               </div>
-              <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 font-medium">{recentToast.text}</p>
+
+              {/* Subtle Countdown Number */}
+              <div className="flex items-center space-x-1 shrink-0 ml-1.5">
+                <Clock className="w-3 h-3 text-primary/60" />
+                <span className="text-[10px] font-mono font-bold text-primary tabular-nums">
+                  {Math.max(1, Math.ceil((activePopout.expiresAt - now) / 1000))}s
+                </span>
+              </div>
+            </div>
+
+            {/* Popout Message Content */}
+            <p className="text-xs text-foreground/95 font-medium line-clamp-2 leading-relaxed pl-1">
+              {activePopout.text}
+            </p>
+
+            {/* Popout Footer Cue */}
+            <div className="flex items-center justify-between pt-0.5 text-[9px] text-muted-foreground/70 font-semibold px-1 border-t border-white/5">
+              <span>Click to open live comms</span>
+              <span className="text-primary font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                Reply <ArrowRight className="w-2.5 h-2.5" />
+              </span>
             </div>
           </motion.div>
         )}
@@ -179,7 +228,7 @@ export function AdminLiveChatWidget() {
         layout
         animate={{
           borderRadius: isOpen ? 24 : 9999,
-          width: isOpen ? 'min(90vw, 360px)' : 52,
+          width: isOpen ? 'min(92vw, 390px)' : 52,
           height: isOpen ? 'auto' : 52
         }}
         transition={{
@@ -188,7 +237,7 @@ export function AdminLiveChatWidget() {
           damping: 32
         }}
         className={`bg-card/95 backdrop-blur-2xl border shadow-(--shadow-ultimate) overflow-hidden ${
-          isOpen ? 'border-border/60 p-4' : 'border-primary/40 p-0 flex items-center justify-center cursor-pointer hover:border-primary hover:scale-105 active:scale-95 transition-transform'
+          isOpen ? 'border-border/60 p-4 sm:p-5' : 'border-primary/40 p-0 flex items-center justify-center cursor-pointer hover:border-primary hover:scale-105 active:scale-95 transition-transform'
         }`}
       >
         <AnimatePresence mode="wait">
@@ -204,29 +253,31 @@ export function AdminLiveChatWidget() {
             >
               {/* Header */}
               <div className="flex items-center justify-between pb-3 border-b border-white/5">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2.5">
                   <div className="relative flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
                   </div>
                   <div>
-                    <h3 className="text-xs font-bold tracking-tight text-foreground flex items-center gap-1.5">
-                      Admin Chat
-                    
+                    <h3 className="text-xs sm:text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
+                      Admin Live Comms
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25">
+                        {messages.length} active
+                      </span>
                     </h3>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="w-6 h-6 rounded-full bg-foreground/10 hover:bg-foreground/20 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                  className="w-7 h-7 rounded-full bg-foreground/10 hover:bg-foreground/20 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Message Feed */}
-              <div className="py-3 flex flex-col space-y-2 max-h-60 overflow-y-auto no-scrollbar min-h-32">
+              {/* Message Feed with Generous Space & True Chat Bubbles */}
+              <div className="py-3.5 flex flex-col space-y-3 max-h-76 sm:max-h-84 overflow-y-auto no-scrollbar min-h-40">
                 <AnimatePresence initial={false}>
                   {messages.length === 0 ? (
                     <motion.div
@@ -234,65 +285,82 @@ export function AdminLiveChatWidget() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground space-y-1.5"
+                      className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground space-y-2"
                     >
-                      <Radio className="w-6 h-6 text-primary/40 animate-pulse" />
-                      <p className="text-xs font-semibold text-foreground/80">Channel is Quiet</p>
-                      <p className="text-[10px] text-muted-foreground/70 max-w-56 leading-relaxed">
-                        Messages broadcast live to active admins and vanish after 12 seconds.
+                      <Radio className="w-7 h-7 text-primary/40 animate-pulse" />
+                      <p className="text-xs font-semibold text-foreground/80">No Active Transmissions</p>
+                      <p className="text-[11px] text-muted-foreground/70 max-w-64 leading-relaxed">
+                        Messages broadcast live to other admins and disappear after a few seconds.
                       </p>
                     </motion.div>
                   ) : (
                     messages.map((msg) => {
-                      const timeLeftRatio = Math.max(0, (msg.expiresAt - Date.now()) / MESSAGE_LIFETIME_MS);
                       const isMe = (admin.index_number || admin.id) === msg.senderIndex;
+                      const secondsLeft = Math.max(1, Math.ceil((msg.expiresAt - now) / 1000));
 
                       return (
                         <motion.div
                           key={msg.id}
-                          initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                          initial={{ opacity: 0, y: 12, scale: 0.96 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9, filter: 'blur(2px)' }}
-                          transition={{ duration: 0.25 }}
-                          className={`rounded-xl p-2.5 border text-xs flex flex-col relative overflow-hidden ${
-                            isMe
-                              ? 'bg-primary/10 border-primary/30 ml-4'
-                              : 'bg-background/60 border-border/20 mr-4'
-                          }`}
+                          exit={{ opacity: 0, scale: 0.92, filter: 'blur(2px)' }}
+                          transition={{ duration: 0.22 }}
+                          className={`flex items-start gap-2.5 ${isMe ? 'flex-row-reverse self-end' : 'self-start'} max-w-[88%]`}
                         >
-                          {/* Sender Info */}
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-bold text-[11px] text-foreground flex items-center gap-1.5 truncate">
-                              {msg.senderName}
-                              <span className="text-[8px] font-bold px-1.5 py-0.2 rounded-sm bg-white/10 text-muted-foreground uppercase">
-                                {msg.senderRole}
+                          {/* Avatar for Incoming Messages */}
+                          {!isMe && (
+                            <div className="w-7 h-7 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shrink-0 text-primary font-bold text-[10px] mt-1 shadow-sm">
+                              {msg.senderAvatar ? (
+                                <img src={msg.senderAvatar} alt="" className="w-full h-full rounded-full object-cover" />
+                              ) : (
+                                msg.senderName.slice(0, 2).toUpperCase()
+                              )}
+                            </div>
+                          )}
+
+                          {/* Outer Column: Nametag above, Chat Bubble below */}
+                          <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} min-w-28`}>
+                            {/* OUTER NAMETAG (Above the Bubble) */}
+                            <div className={`flex items-center gap-1.5 mb-1 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                              {!isMe && (
+                                <span className="font-bold text-[11px] text-foreground/90 truncate max-w-36">
+                                  {msg.senderName}
+                                </span>
+                              )}
+                              
+                              <span className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-white/10 text-muted-foreground uppercase shrink-0">
+                                {isMe ? 'You' : msg.senderRole}
                               </span>
-                            </span>
-                          </div>
 
-                          {/* Text */}
-                          <p className="text-xs text-foreground/90 font-medium wrap-break-word leading-snug">
-                            {msg.text}
-                          </p>
+                              {/* Subtle Number Duration */}
+                              <span className="text-[9px] font-mono font-medium text-muted-foreground/60 tabular-nums ml-0.5">
+                                {secondsLeft}s
+                              </span>
+                            </div>
 
-                          {/* Disappearing Timer Line */}
-                          <div className="w-full bg-white/5 h-0.5 rounded-full mt-2 overflow-hidden">
-                            <motion.div
-                              className="h-full bg-primary"
-                              initial={{ width: '100%' }}
-                              animate={{ width: '0%' }}
-                              transition={{ duration: MESSAGE_LIFETIME_MS / 1000, ease: 'linear' }}
-                            />
+                            {/* CHAT BUBBLE (Clean text only) */}
+                            <div
+                              className={`rounded-2xl p-3 shadow-md backdrop-blur-md ${
+                                isMe
+                                  ? 'bg-linear-to-br from-primary/20 via-primary/15 to-primary/10 border border-primary/40 rounded-tr-xs text-right'
+                                  : 'bg-background/80 border border-border/30 rounded-tl-xs text-left'
+                              }`}
+                            >
+                              <p className="text-xs sm:text-[13px] text-foreground font-normal break-words leading-relaxed">
+                                {msg.text}
+                              </p>
+                            </div>
                           </div>
                         </motion.div>
                       );
                     })
                   )}
                 </AnimatePresence>
+                <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Box */}
-              <form onSubmit={handleSendMessage} className="pt-2 border-t border-white/5 flex items-center gap-1.5">
+              {/* Input Box with Comfortable Spacing */}
+              <form onSubmit={handleSendMessage} className="pt-3 border-t border-white/5 flex items-center gap-2">
                 <input
                   ref={inputRef}
                   type="text"
@@ -300,12 +368,12 @@ export function AdminLiveChatWidget() {
                   onChange={(e) => setInputMessage(e.target.value)}
                   placeholder="Type temporary live note..."
                   maxLength={160}
-                  className="flex-1 bg-background/60 border border-border/20 rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary/60 transition-colors"
+                  className="flex-1 bg-background/70 border border-border/30 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary/60 transition-colors shadow-inner"
                 />
                 <button
                   type="submit"
                   disabled={!inputMessage.trim() || isSending}
-                  className="h-8 px-3 rounded-xl bg-primary text-black font-bold text-xs flex items-center justify-center space-x-1 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 active:scale-95 transition-all shadow-[0_0_12px_rgba(var(--primary),0.4)]"
+                  className="h-9 px-3.5 rounded-xl bg-primary text-black font-bold text-xs flex items-center justify-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 active:scale-95 transition-all shadow-[0_0_12px_rgba(var(--primary),0.4)] cursor-pointer shrink-0"
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>
@@ -317,7 +385,7 @@ export function AdminLiveChatWidget() {
               key="fab"
               type="button"
               onClick={() => setIsOpen(true)}
-              aria-label="Open Admin Intercom"
+              aria-label="Open Admin Live Comms"
               className="w-full h-full flex items-center justify-center relative group"
             >
               <div className="relative flex items-center justify-center">
