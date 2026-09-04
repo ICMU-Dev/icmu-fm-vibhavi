@@ -1,7 +1,8 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { PublicView } from './pages/PublicView';
-import { AdminDashboard } from './pages/AdminDashboard';
+import { AdminRouteGuard } from './components/auth/AdminRouteGuard';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { useStream } from './context/StreamContext';
 import { Loader } from './components/motion/loader';
 
@@ -19,7 +20,9 @@ function App() {
     return (
         <Routes>
           <Route path="/" element={<PublicView />}/>
-          <Route path="/admin" element={<AdminDashboard />}/>
+          <Route path="/admin" element={<AdminRouteGuard />}/>
+          <Route path="/:indexNumber" element={<AdminRouteGuard />}/>
+          <Route path="*" element={<NotFoundPage />}/>
         </Routes>
     );
 }

@@ -16,7 +16,7 @@ export const AudioProvider = ({ children }) => {
     }, []);
     
     useEffect(() => {
-        const isAdmin = location.pathname.includes('/admin');
+        const isAdmin = location.pathname !== '/';
         
         // Only force pause if the station goes offline
         if (audioRef.current && !isBroadcasting && !isAdmin) {
@@ -120,7 +120,7 @@ export const AudioProvider = ({ children }) => {
 
     useEffect(() => {
         const handleOnline = () => {
-            const isAdmin = location.pathname.includes('/admin');
+            const isAdmin = location.pathname !== '/';
             if (isBroadcasting && streamUrl && audioRef.current && !isAdmin) {
                 play();
             }

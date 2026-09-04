@@ -6,12 +6,13 @@ import { StatefulButton } from '../components/motion/button/stateful';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/motion/tabs';
 import { AnimatedBadge } from '../components/motion/animated-badge';
 import { Label } from '../components/ui/label';
-import { Radio, Settings, Clock, AlertTriangle, Heart } from 'lucide-react';
+import { Radio, Settings, Clock, AlertTriangle, Heart, ArrowUpRight } from 'lucide-react';
 import { CenterMorphModal, CenterMorphModalContent } from '../components/motion/center-morph-modal';
 import { Button } from '../components/motion/button/base';
 import { Logo } from '../components/Logo';
+import { getRoleLabel } from '../utils/auth';
 
-export function AdminDashboard() {
+export function AdminDashboard({ operator = null }) {
   const { streamUrl, setStreamUrl, connectionState, bitrate, bufferHealth, uptime, listenerCount, isBroadcasting, currentTrack, dbError, setDbError } = useStream();
   const [configUrl, setConfigUrl] = useState(streamUrl);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -19,6 +20,16 @@ export function AdminDashboard() {
   const [urlError, setUrlError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [activeOperator, setActiveOperator] = useState(operator);
+
+  useEffect(() => {
+    if (!activeOperator && typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('icmu_session');
+        if (raw) setActiveOperator(JSON.parse(raw));
+      } catch (_) {}
+    }
+  }, [operator]);
 
   useEffect(() => {
     const handleOffline = () => setIsOffline(true);
@@ -121,6 +132,34 @@ export function AdminDashboard() {
       <div className="absolute top-6 left-6 md:left-8 z-50 pointer-events-none opacity-50 flex items-center space-x-3">
         <Logo variant="transparent" className="h-6" />
         <span className="text-[10px] uppercase tracking-widest font-bold hidden sm:block">FM Vibhavi</span>
+      </div>
+
+      {/* Top Right Operator Badge & Portal Link */}
+      <div className="absolute top-6 right-6 md:right-8 z-50 flex items-center gap-2 sm:gap-3">
+        {activeOperator && (
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-card/60 border border-border/30 backdrop-blur-md text-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-mono text-[11px] font-bold text-foreground">
+              {activeOperator.index_number || activeOperator.indexNumber || "OP"}
+            </span>
+            <span className="text-muted-foreground">•</span>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+              {getRoleLabel(activeOperator.role)}
+            </span>
+          </div>
+        )}
+
+        <a
+          href={
+            typeof window !== "undefined" && window.location.hostname === "localhost"
+              ? `http://localhost:5173/${activeOperator?.index_number || activeOperator?.indexNumber || ""}`
+              : `https://dev.isipathanacollegemediaunit.com/${activeOperator?.index_number || activeOperator?.indexNumber || ""}`
+          }
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-card/60 hover:bg-card border border-border/30 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-all shadow-sm active:scale-95 backdrop-blur-md"
+          title="Return to ICMU Admin Hub">
+          <span className="text-[10px]">ICMU Hub</span>
+          <ArrowUpRight className="w-3.5 h-3.5" />
+        </a>
       </div>
 
       {/* Error Banner */}
