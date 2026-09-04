@@ -11,7 +11,7 @@ export const StreamProvider = ({ children }) => {
     const [bitrate, setBitrate] = useState(128); // mock default
     const [bufferHealth, setBufferHealth] = useState(0);
     const [uptime, setUptime] = useState(0);
-    const [listenerCount, setListenerCount] = useState(42);
+    const [listenerCount, setListenerCount] = useState(0);
     const [isBroadcastingState, setIsBroadcastingState] = useState(false);
     const [startedAt, setStartedAt] = useState(null);
     const [currentTrack, setCurrentTrack] = useState(null);
@@ -193,14 +193,9 @@ export const StreamProvider = ({ children }) => {
                     setUptime(prev => prev + 1); // fallback
                 }
                 
-                // Currently mocked until a radio server API is provided
+                // Mocked defaults until broadcast audio server is active
                 setBufferHealth(100); 
                 setBitrate(128); 
-                // We keep a slight random fluctuation for aesthetic if no API is available
-                setListenerCount(prev => {
-                    const next = prev + Math.floor(Math.random() * 3) - 1;
-                    return next < 0 ? 0 : next;
-                });
             }, 1000);
         } else {
             setConnectionState('disconnected');
@@ -287,9 +282,20 @@ const extractRadioId = (url) => {
                             cover: data.cover || null
                         });
                     }
+
+                    // Fetch real-time active listener count from RadioKing
+                    try {
+                        const listenerRes = await fetch(`https://api.radioking.io/widget/radio/${radioId}/listener?${cacheBuster}`);
+                        if (listenerRes.ok) {
+                            const listenerData = await listenerRes.json();
+                            if (typeof listenerData.listener_count === 'number') {
+                                setListenerCount(listenerData.listener_count);
+                            }
+                        }
+                    } catch (_) {}
                 }
             } catch (e) {
-                console.error("Failed to fetch track data:", e);
+                console.error("Failed to fetch track/listener data:", e);
             }
         };
 
@@ -316,6 +322,7 @@ const extractRadioId = (url) => {
             };
         } else {
             setCurrentTrack(null);
+            setListenerCount(0);
         }
 
         return () => clearInterval(interval);

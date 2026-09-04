@@ -430,3 +430,25 @@ export async function verifyOperatorAccess(routeIndexNumber, ssoTokenFromUrl = n
     };
   }
 }
+
+/**
+ * Synchronously returns the currently authenticated admin/operator, if any.
+ */
+export function getAuthenticatedAdmin() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('icmu_session');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && (parsed.index_number || parsed.indexNumber || parsed.role)) {
+        return parsed;
+      }
+    }
+    const cookieSession = getCookie(AUTH_COOKIE_KEYS.SESSION);
+    if (cookieSession && (cookieSession.index_number || cookieSession.indexNumber || cookieSession.role)) {
+      return cookieSession;
+    }
+  } catch (_) {}
+  return null;
+}
+

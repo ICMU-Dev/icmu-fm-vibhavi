@@ -6,7 +6,7 @@ import { StatefulButton } from '../components/motion/button/stateful';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/motion/tabs';
 import { AnimatedBadge } from '../components/motion/animated-badge';
 import { Label } from '../components/ui/label';
-import { Radio, Settings, Clock, AlertTriangle, Heart, ArrowUpRight } from 'lucide-react';
+import { Radio, Settings, Clock, AlertTriangle, Heart, ArrowUpRight, Globe, Copy, Check, ExternalLink } from 'lucide-react';
 import { CenterMorphModal, CenterMorphModalContent } from '../components/motion/center-morph-modal';
 import { Button } from '../components/motion/button/base';
 import { Logo } from '../components/Logo';
@@ -15,6 +15,7 @@ import { ActiveAdmins } from '../components/layout/ActiveAdmins';
 import { ProfileCard } from '../components/layout/ProfileCard';
 import { NumberTicker } from '../components/motion/number-ticker';
 import { supabase } from '../lib/supabase';
+import { getPublicStationUrl, isLocalhost } from '../config/station';
 
 export function AdminDashboard({ operator = null }) {
   const { streamUrl, setStreamUrl, connectionState, bitrate, bufferHealth, uptime, listenerCount, isBroadcasting, currentTrack, dbError, setDbError } = useStream();
@@ -25,6 +26,29 @@ export function AdminDashboard({ operator = null }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [activeOperator, setActiveOperator] = useState(operator);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const publicStationUrl = getPublicStationUrl();
+  const isLocal = isLocalhost();
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(publicStationUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (_) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = publicStationUrl;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+      } catch (_) {}
+    }
+  };
 
   useEffect(() => {
     if (operator) {
@@ -348,6 +372,59 @@ export function AdminDashboard({ operator = null }) {
                   >
                       Save Stream Link
                   </StatefulButton>
+                </div>
+              </div>
+            </div>
+
+            {/* Public Player Share Card */}
+            <div className="bg-card/40 border border-border/20 rounded-3xl p-6 md:p-8 shadow-(--shadow-ultimate) flex flex-col backdrop-blur-sm w-full shrink-0 mt-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Globe className="w-4 h-4 text-primary" />
+                    <h2 className="text-sm font-semibold tracking-wide text-foreground">Public Station Link</h2>
+                  </div>
+                
+                </div>
+
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Share this link with your listeners. On localhost, it dynamically points to your local server port; in production, it routes to your live domain (<span className="text-foreground font-mono font-bold">{publicStationUrl}</span>).
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                  <div className="flex-1 bg-background border border-border/50 py-3 px-4 rounded-2xl font-mono text-xs text-foreground select-all truncate flex items-center shadow-inner">
+                    {publicStationUrl}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-4 py-3 rounded-2xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-all active:scale-95 shadow-sm cursor-pointer"
+                    >
+                      {copiedLink ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-black" />
+                          <span className="text-black font-bold">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy Link</span>
+                        </>
+                      )}
+                    </button>
+
+                    <a
+                      href={publicStationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center p-3 rounded-2xl bg-muted/40 hover:bg-muted/70 text-foreground border border-border/30 transition-colors"
+                      title="Open Public Player in New Tab"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
