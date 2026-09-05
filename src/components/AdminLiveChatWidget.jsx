@@ -279,7 +279,7 @@ export function AdminLiveChatWidget() {
               setIsOpen(true);
               setActivePopout(null);
             }}
-            className="absolute right-14 sm:right-15 bottom-0 w-[calc(100vw-5rem)] max-w-72 sm:max-w-84 bg-card/95 backdrop-blur-2xl border border-primary/50 rounded-2xl rounded-br-xs p-3 sm:p-3.5 shadow-2xl cursor-pointer hover:border-primary transition-all flex flex-col space-y-2 group"
+            className="absolute right-14 sm:right-15 bottom-0 w-[calc(100vw-5rem)] max-w-72 sm:max-w-84 bg-black/75 backdrop-blur-2xl border border-primary/40 rounded-2xl rounded-br-xs p-3 sm:p-3.5 shadow-2xl cursor-pointer hover:border-primary transition-all flex flex-col space-y-2 group text-white"
           >
             {/* Popout Header */}
             <div className="flex items-center justify-between">
@@ -291,28 +291,28 @@ export function AdminLiveChatWidget() {
                     activePopout.senderName.slice(0, 2).toUpperCase()
                   )}
                 </div>
-                <span className="text-xs font-bold text-foreground truncate max-w-28 sm:max-w-36">{activePopout.senderName}</span>
-                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-muted-foreground uppercase shrink-0">
+                <span className="text-xs font-bold text-white truncate max-w-28 sm:max-w-36">{activePopout.senderName}</span>
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-white/70 uppercase shrink-0">
                   {activePopout.senderRole}
                 </span>
               </div>
 
               {/* Subtle Countdown Number */}
               <div className="flex items-center space-x-1 shrink-0 ml-1.5">
-                <Clock className="w-3 h-3 text-primary/60" />
-                <span className="text-[10px] font-mono font-bold text-primary tabular-nums">
+                <Clock className="w-3 h-3 text-primary/80" />
+                <span className="text-[10px] font-bold text-primary tabular-nums">
                   {formatCountdown(activePopout.expiresAt, now)}
                 </span>
               </div>
             </div>
 
             {/* Popout Message Content with Text Wrapping */}
-            <p className="text-xs text-foreground/95 font-medium line-clamp-3 leading-relaxed pl-1 wrap-break-word whitespace-pre-wrap">
+            <p className="text-xs text-white/95 font-medium line-clamp-3 leading-relaxed pl-1 wrap-break-word whitespace-pre-wrap">
               {activePopout.text}
             </p>
 
             {/* Popout Footer Cue */}
-            <div className="flex items-center justify-between pt-0.5 text-[9px] text-muted-foreground/70 font-semibold px-1 border-t border-white/5">
+            <div className="flex items-center justify-between pt-0.5 text-[9px] text-white/50 font-semibold px-1 border-t border-white/10">
               <span>Click to open live comms</span>
               <span className="text-primary font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
                 Reply <ArrowRight className="w-2.5 h-2.5" />
@@ -335,8 +335,8 @@ export function AdminLiveChatWidget() {
           stiffness: 420,
           damping: 32
         }}
-        className={`bg-card/95 backdrop-blur-2xl border shadow-(--shadow-ultimate) overflow-hidden max-h-[min(85dvh,620px)] flex flex-col ${
-          isOpen ? 'border-border/60 p-3.5 sm:p-5' : 'border-primary/40 p-0 flex items-center justify-center cursor-pointer hover:border-primary hover:scale-105 active:scale-95 transition-transform'
+        className={`bg-black/75 backdrop-blur-2xl border shadow-2xl overflow-hidden max-h-[min(85dvh,620px)] flex flex-col ${
+          isOpen ? 'border-white/15 p-3.5 sm:p-5' : 'border-primary/40 p-0 flex items-center justify-center cursor-pointer hover:border-primary hover:scale-105 active:scale-95 transition-transform bg-black/60 shadow-[0_0_20px_rgba(0,255,102,0.25)]'
         }`}
       >
         <AnimatePresence mode="wait">
@@ -358,9 +358,9 @@ export function AdminLiveChatWidget() {
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
                   </div>
                   <div>
-                    <h3 className="text-xs sm:text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
+                    <h3 className="text-xs sm:text-sm font-bold tracking-tight text-white flex items-center gap-2">
                       Admin Live Comms
-                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25">
                         {messages.length} active
                       </span>
                     </h3>
@@ -381,7 +381,7 @@ export function AdminLiveChatWidget() {
                     type="button"
                     onClick={() => setIsOpen(false)}
                     aria-label="Close"
-                    className="w-7 h-7 rounded-full bg-foreground/10 hover:bg-foreground/20 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -405,11 +405,11 @@ export function AdminLiveChatWidget() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground space-y-2"
+                      className="flex flex-col items-center justify-center py-10 text-center text-white/40 space-y-2"
                     >
                       <Radio className="w-7 h-7 text-primary/40 animate-pulse" />
-                      <p className="text-xs font-semibold text-foreground/80">No Active Transmissions</p>
-                      <p className="text-[11px] text-muted-foreground/70 max-w-64 leading-relaxed">
+                      <p className="text-xs font-semibold text-white/80">No Active Transmissions</p>
+                      <p className="text-[11px] text-white/50 max-w-64 leading-relaxed">
                         Messages broadcast live to other admins and disappear after a short while.
                       </p>
                     </motion.div>
@@ -443,17 +443,17 @@ export function AdminLiveChatWidget() {
                             {/* OUTER NAMETAG (Above the Bubble) */}
                             <div className={`flex items-center gap-1.5 mb-1 px-1 ${isMe ? 'justify-end' : 'justify-start'} max-w-full overflow-hidden`}>
                               {!isMe && (
-                                <span className="font-bold text-[11px] text-foreground/90 truncate max-w-28 sm:max-w-36">
+                                <span className="font-bold text-[11px] text-white truncate max-w-28 sm:max-w-36">
                                   {msg.senderName}
                                 </span>
                               )}
                               
-                              <span className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-white/10 text-muted-foreground uppercase shrink-0">
+                              <span className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-white/10 text-white/60 uppercase shrink-0">
                                 {isMe ? 'You' : msg.senderRole}
                               </span>
 
                               {/* Subtle Number Duration */}
-                              <span className="text-[9px] font-mono font-medium text-muted-foreground/60 tabular-nums ml-0.5 shrink-0">
+                              <span className="text-[9px] font-medium text-white/40 tabular-nums ml-0.5 shrink-0">
                                 {timeString}
                               </span>
                             </div>
@@ -462,11 +462,11 @@ export function AdminLiveChatWidget() {
                             <div
                               className={`rounded-2xl p-2.5 sm:p-3 shadow-md backdrop-blur-md max-w-full wrap-break-word ${
                                 isMe
-                                  ? 'bg-linear-to-br from-primary/20 via-primary/15 to-primary/10 border border-primary/40 rounded-tr-xs text-left'
-                                  : 'bg-background/80 border border-border/30 rounded-tl-xs text-left'
+                                  ? 'bg-primary/20 border border-primary/40 rounded-tr-xs text-left'
+                                  : 'bg-white/10 border border-white/15 rounded-tl-xs text-left'
                               }`}
                             >
-                              <p className="text-xs sm:text-[13px] text-foreground font-normal wrap-break-word whitespace-pre-wrap leading-relaxed">
+                              <p className="text-xs sm:text-[13px] text-white font-normal wrap-break-word whitespace-pre-wrap leading-relaxed">
                                 {msg.text}
                               </p>
                             </div>
@@ -487,7 +487,7 @@ export function AdminLiveChatWidget() {
               )}
 
               {/* Input Box with Comfortable Spacing and Mobile-Friendly Font Size */}
-              <form onSubmit={handleSendMessage} className="pt-2.5 border-t border-white/5 flex items-center gap-2">
+              <form onSubmit={handleSendMessage} className="pt-2.5 border-t border-white/10 flex items-center gap-2">
                 <input
                   ref={inputRef}
                   type="text"
@@ -495,14 +495,14 @@ export function AdminLiveChatWidget() {
                   onChange={(e) => setInputMessage(e.target.value)}
                   placeholder="Type temporary live note..."
                   maxLength={160}
-                  className="flex-1 bg-background/70 border border-border/30 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-[14px] sm:text-xs text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary/60 transition-colors shadow-inner min-w-0"
+                  className="flex-1 bg-white/5 border border-white/15 focus:border-primary rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-[14px] sm:text-xs text-white placeholder:text-white/40 outline-none transition-colors shadow-inner min-w-0"
                 />
                 <button
                   type="submit"
                   disabled={!inputMessage.trim() || isSending}
-                  className="h-8.5 sm:h-9 px-3 sm:px-3.5 rounded-xl bg-primary text-black font-bold text-xs flex items-center justify-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 active:scale-95 transition-all shadow-[0_0_12px_rgba(var(--primary),0.4)] cursor-pointer shrink-0"
+                  className="h-8.5 sm:h-9 px-3 sm:px-3.5 rounded-xl bg-primary text-black font-bold text-xs flex items-center justify-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 active:scale-95 transition-all shadow-[0_0_12px_rgba(0,255,102,0.4)] cursor-pointer shrink-0"
                 >
-                  <Send className="w-3.5 h-3.5" />
+                  <Send className="w-3.5 h-3.5 text-black" />
                 </button>
               </form>
             </motion.div>

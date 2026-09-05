@@ -1,18 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useStream } from '../context/StreamContext';
-import { useAudioPlayback } from '../context/AudioContext';
-import { Play, Pause, Volume2, VolumeX, Menu, Power, Heart, AlertTriangle, Radio } from 'lucide-react';
-import { Button } from '../components/motion/button/base';
-import { RangeSlider } from '../components/motion/range-slider';
-import { Link } from 'react-router-dom';
+import { useAudioPlayback, useAudioVolume } from '../context/AudioContext';
+import { Play, Pause, Volume2, VolumeX, AlertTriangle, Radio } from 'lucide-react';
 import { Loader } from '../components/motion/loader';
-import { Logo } from '../components/Logo';
-import { VolumeKnob } from '../components/VolumeKnob';
-import { motion, AnimatePresence } from "motion/react";
+import { AtmosphereBackground } from '../components/layout/AtmosphereBackground';
+import fallbackDemo from '../data/demo.json';
 
 export function PublicView() {
     const { isBroadcasting, currentTrack } = useStream();
     const { audioRef, play, pause } = useAudioPlayback();
+    const { volume, setVolume, isMuted, toggleMute } = useAudioVolume();
+
+    const [demoData, setDemoData] = useState(fallbackDemo);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isBuffering, setIsBuffering] = useState(false);
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -21,10 +20,23 @@ export function PublicView() {
     const analyserRef = useRef(null);
     const sourceRef = useRef(null);
     const requestRef = useRef(null);
-    const lerpedHeightsRef = useRef(new Array(24).fill(0));
-    const barsRef = useRef([]);
+    const lerpedHeightsRef = useRef(new Array(22).fill(15));
+    const barsDesktopRef = useRef([]);
+    const barsMobileRef = useRef([]);
 
-    // Sync isPlaying state with actual audio element state in case it pauses/plays outside React
+    // Fetch external demo.json if available, otherwise keep fallback
+    useEffect(() => {
+        fetch('/demo.json')
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.upcoming) {
+                    setDemoData(data);
+                }
+            })
+            .catch(() => {});
+    }, []);
+
+    // Sync isPlaying state with actual audio element
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
@@ -54,8 +66,9 @@ export function PublicView() {
             audio.removeEventListener('loadstart', handleLoadStart);
             audio.removeEventListener('canplay', handleCanPlay);
         };
-    }, [audioRef]);
+    }, [audioRef, isPlaying]);
 
+    // Network status
     useEffect(() => {
         const handleOffline = () => setIsOffline(true);
         const handleOnline = () => setIsOffline(false);
@@ -75,21 +88,6 @@ export function PublicView() {
         }
     }, [isBroadcasting, isPlaying, pause]);
 
-    const prevBroadcastingRef = useRef(isBroadcasting);
-    const lastBroadcastReloadRef = useRef(0);
-
-    // Guarded reload when station comes back online (throttled to max once per 60s)
-    useEffect(() => {
-        if (prevBroadcastingRef.current === false && isBroadcasting === true) {
-            const now = Date.now();
-            if (now - lastBroadcastReloadRef.current > 60000) {
-                lastBroadcastReloadRef.current = now;
-                window.location.reload();
-            }
-        }
-        prevBroadcastingRef.current = isBroadcasting;
-    }, [isBroadcasting]);
-
     // Audio Visualizer Loop
     useEffect(() => {
         if (audioRef.current && isPlaying && !audioCtxRef.current) {
@@ -97,7 +95,7 @@ export function PublicView() {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 audioCtxRef.current = new AudioContext();
                 analyserRef.current = audioCtxRef.current.createAnalyser();
-                analyserRef.current.fftSize = 64; // Gives us 32 bins
+                analyserRef.current.fftSize = 64;
 
                 sourceRef.current = audioCtxRef.current.createMediaElementSource(audioRef.current);
                 sourceRef.current.connect(analyserRef.current);
@@ -112,39 +110,45 @@ export function PublicView() {
         }
 
         const updateLoop = () => {
-            let dataArray = new Uint8Array(24);
+            let dataArray = new Uint8Array(22);
             
             if (isPlaying) {
                 let isAllZero = true;
                 if (analyserRef.current) {
                     const fullData = new Uint8Array(analyserRef.current.frequencyBinCount);
                     analyserRef.current.getByteFrequencyData(fullData);
-                    dataArray = fullData.slice(0, 24);
+                    dataArray = fullData.slice(0, 22);
                     isAllZero = !dataArray.some(val => val > 0);
                 }
 
-                // If CORS blocks data (all zeros), fallback to a smooth, organic fluid animation
+                // If CORS blocks analyser data, fallback to fluid harmonic motion
                 if (isAllZero || !analyserRef.current) {
-                    const time = Date.now() / 300;
-                    for(let i=0; i<24; i++) {
-                        const wave1 = Math.sin(time + (i * 0.3)) * 30;
-                        const wave2 = Math.cos(time * 0.7 - (i * 0.2)) * 25;
-                        const wave3 = Math.sin(time * 0.4 + i) * 15;
-                        dataArray[i] = Math.max(0, wave1 + wave2 + wave3 + 100);
+                    const time = Date.now() / 240;
+                    for (let i = 0; i < 22; i++) {
+                        const wave1 = Math.sin(time + (i * 0.38)) * 40;
+                        const wave2 = Math.cos(time * 0.7 - (i * 0.28)) * 32;
+                        const wave3 = Math.sin(time * 0.45 + i * 0.5) * 20;
+                        dataArray[i] = Math.max(15, wave1 + wave2 + wave3 + 125);
                     }
+                }
+            } else {
+                // Symmetrical resting wave pattern matching mockup
+                for (let i = 0; i < 22; i++) {
+                    const distFromCenter = Math.abs(i - 10.5) / 10.5;
+                    dataArray[i] = Math.max(18, (1 - distFromCenter * 0.65) * 110);
                 }
             }
 
-            // Smoothly interpolate (lerp) heights to remove jitter (runs at 60fps)
-            barsRef.current.forEach((bar, i) => {
-                if (bar) {
-                    const targetVal = dataArray[i] || 10;
-                    const targetPercent = Math.max(8, (targetVal / 255) * 100);
-                    
-                    lerpedHeightsRef.current[i] += (targetPercent - lerpedHeightsRef.current[i]) * 0.15;
-                    bar.style.height = `${lerpedHeightsRef.current[i]}%`;
-                }
-            });
+            // Smoothly interpolate heights (lerp)
+            for (let i = 0; i < 22; i++) {
+                const targetVal = dataArray[i] || 15;
+                const targetPercent = Math.max(12, Math.min(100, (targetVal / 255) * 100));
+                lerpedHeightsRef.current[i] += (targetPercent - lerpedHeightsRef.current[i]) * 0.18;
+                const hStr = `${lerpedHeightsRef.current[i]}%`;
+                
+                if (barsDesktopRef.current[i]) barsDesktopRef.current[i].style.height = hStr;
+                if (barsMobileRef.current[i]) barsMobileRef.current[i].style.height = hStr;
+            }
 
             requestRef.current = requestAnimationFrame(updateLoop);
         };
@@ -160,130 +164,290 @@ export function PublicView() {
     const togglePlay = () => {
         if (isPlaying) {
             pause();
-        }
-        else {
+        } else {
             if (!isBroadcasting) {
-                alert("Station is currently offline.");
+                alert("FM Vibhavi is currently off-air. Check back soon!");
                 return;
             }
             play();
         }
     };
 
-    return (<div className="flex flex-col items-center justify-center min-h-dvh bg-background relative overflow-hidden font-sans">
-      {/* Dynamic Background Glow */}
-      <div className="absolute inset-0 bg-(image:--radialPrimaryAccent) opacity-10 pointer-events-none mix-blend-screen"/>
-      
-      <div className="w-full max-w-sm sm:max-w-md bg-card/40 backdrop-blur-3xl border-0 sm:border border-white/5 sm:border-border/30 sm:rounded-[2.5rem] shadow-2xl overflow-hidden h-dvh sm:h-auto sm:min-h-185 flex flex-col justify-between relative z-10 py-2 sm:py-5 px-4 no-scrollbar">
-        
-        {/* Top Nav */}
-        <div className="flex justify-center items-center pt-2 pb-2 shrink-0">
-           <Logo variant="transparent" className="h-9 sm:h-10 opacity-90 drop-shadow-[0_0_12px_rgba(255,255,255,0.2)]" />
+    // Volume Slider Drag / Click Helper
+    const handleVolumeInteraction = useCallback((e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clientX = e.clientX ?? (e.touches && e.touches[0]?.clientX);
+        if (clientX !== undefined) {
+            const rawX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+            const newVol = Number((rawX / rect.width).toFixed(2));
+            setVolume(newVol);
+            if (isMuted && newVol > 0) toggleMute();
+        }
+    }, [setVolume, isMuted, toggleMute]);
+
+    const displayTrackTitle = currentTrack?.title || demoData.nowPlaying?.title || "Isipathana College Media Unit";
+    const frequency = demoData.station?.frequency || "102.5";
+    const upcomingShows = demoData.upcoming || [];
+
+    const effectiveVolumePercent = isMuted ? 0 : Math.round(volume * 100);
+
+    return (
+        <div className="relative min-h-dvh w-full overflow-x-hidden font-sans select-none bg-[#070b08] text-white">
+            {/* Dynamic Time-of-Day Atmosphere Background with Seamless Crossfade */}
+            <AtmosphereBackground variant="public" opacity={1} />
+
+            {/* Main Viewport Container */}
+            <div className="relative z-10 min-h-dvh w-full flex flex-col justify-between p-5 sm:p-8 lg:px-16 lg:py-10 max-w-7xl mx-auto">
+                
+                {/* ========================================================================= */}
+                {/* TOP HEADER */}
+                {/* ========================================================================= */}
+                <header className="flex items-start justify-between w-full pt-1 sm:pt-2">
+                    {/* Left: Dual Crests + Title */}
+                    <div className="flex flex-col items-start space-y-1 sm:space-y-1.5">
+                        <div className="flex items-center space-x-2.5 sm:space-x-3">
+                            {/* Isipathana College Crest */}
+                            <img 
+                                src="/assets/isipathana_crest.png" 
+                                alt="Isipathana College Crest" 
+                                className="h-9 sm:h-11 w-auto object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
+                            />
+                            {/* Media Unit Crest */}
+                            <img 
+                                src="/apple-touch-icon.png" 
+                                alt="ICMU Crest" 
+                                className="h-9 sm:h-11 w-auto object-contain brightness-0 invert drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
+                            />
+                        </div>
+                        <div className="hidden sm:flex flex-col text-left">
+                            <span className="text-[11px] lg:text-xs font-bold tracking-[0.18em] text-white uppercase leading-tight">
+                                ISIPATHANA COLLEGE
+                            </span>
+                            <span className="text-[9px] lg:text-[10px] font-medium tracking-[0.25em] text-white/80 uppercase leading-tight">
+                                MEDIA UNIT
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Right: FM Vibhavi Logo */}
+                    <div className="flex items-center justify-end">
+                        <img 
+                            src="/assets/vibhavi_logo.png" 
+                            alt="FM Vibhavi" 
+                            className="h-12 sm:h-15 lg:h-16 w-auto object-contain drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)]"
+                        />
+                    </div>
+                </header>
+
+                {/* ========================================================================= */}
+                {/* DESKTOP BODY (lg and above) */}
+                {/* ========================================================================= */}
+                <main className="hidden lg:flex items-center justify-between w-full my-auto py-8">
+                    {/* Left Column: Frequency + Now Playing + Player */}
+                    <div className="flex flex-col items-start max-w-lg">
+                        <h1 className="text-6xl xl:text-8xl font-bold text-white tracking-tighter leading-none mb-1 drop-shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
+                            {frequency}
+                        </h1>
+                        <p className="text-lg xl:text-xl text-white/80 font-medium mb-3">
+                            Now Playing
+                        </p>
+
+                        {/* Track Badge Pill */}
+                        <div className="inline-flex items-center rounded-full bg-white/10 hover:bg-white/15 backdrop-blur-md border border-white/15 px-4 py-1.5 text-xs xl:text-sm font-medium text-white shadow-lg mb-6 max-w-sm truncate transition-colors">
+                            {displayTrackTitle}
+                        </div>
+
+                        {/* Audio Player Capsule */}
+                        <div className="rounded-full bg-black/45 backdrop-blur-xl border border-white/15 p-2 xl:p-2.5 pr-6 xl:pr-8 flex items-center gap-4 shadow-2xl">
+                            <button
+                                type="button"
+                                onClick={togglePlay}
+                                disabled={isOffline}
+                                aria-label={isPlaying ? "Pause" : "Play"}
+                                className="w-14 h-14 xl:w-16 xl:h-16 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-50"
+                            >
+                                {isOffline ? (
+                                    <AlertTriangle className="w-6 h-6 text-destructive" />
+                                ) : isBuffering ? (
+                                    <Loader variant="spinner" size={24} className="text-black" />
+                                ) : isPlaying ? (
+                                    <Pause className="w-6 h-6 xl:w-7 xl:h-7 fill-black text-black" />
+                                ) : (
+                                    <Play className="w-6 h-6 xl:w-7 xl:h-7 fill-black text-black ml-1" />
+                                )}
+                            </button>
+
+                            {/* Soundwave Bars */}
+                            <div className="flex items-center space-x-1.5 h-9 xl:h-10 px-1">
+                                {Array.from({ length: 22 }).map((_, i) => (
+                                    <div
+                                        key={`desktop-bar-${i}`}
+                                        ref={el => barsDesktopRef.current[i] = el}
+                                        className="w-1 xl:w-1.5 rounded-full bg-white transition-all duration-75"
+                                        style={{ height: '20%' }}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Column: Coming Up Next + Volume */}
+                    <div className="flex flex-col items-start w-full max-w-84 xl:max-w-96">
+                        <h2 className="text-white/90 text-sm font-semibold tracking-wide mb-3 pl-1">
+                            Coming Up Next
+                        </h2>
+
+                        {/* Shows Stack */}
+                        <div className="flex flex-col space-y-2.5 w-full">
+                            {upcomingShows.map((item) => (
+                                <div
+                                    key={item.id}
+                                    className="w-full rounded-full bg-white/10 hover:bg-white/15 backdrop-blur-md border border-white/15 px-5 py-3 flex items-center justify-between text-white transition-all duration-200 shadow-md group cursor-default"
+                                >
+                                    <span className="text-white font-medium text-xs xl:text-sm truncate mr-3">
+                                        {item.title}
+                                    </span>
+                                    <span className="text-white/60 font-mono text-[11px] xl:text-xs shrink-0 tabular-nums">
+                                        {item.time}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Desktop Volume Slider */}
+                        <div className="flex items-center space-x-3 mt-4 pt-1 pl-1">
+                            <span className="text-white/80 text-xs xl:text-sm font-medium">Volume</span>
+                            <div
+                                onClick={handleVolumeInteraction}
+                                onTouchMove={handleVolumeInteraction}
+                                className="w-36 xl:w-44 h-5 rounded-full bg-white/15 backdrop-blur-md relative overflow-hidden cursor-pointer flex items-center p-0.5 border border-white/10 hover:border-white/30 transition-colors"
+                            >
+                                <div
+                                    className="h-full bg-white rounded-full transition-all duration-75 ease-out shadow-sm"
+                                    style={{ width: `${Math.max(8, effectiveVolumePercent)}%` }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </main>
+
+                {/* ========================================================================= */}
+                {/* MOBILE BODY (below lg) */}
+                {/* ========================================================================= */}
+                <main className="flex lg:hidden flex-col items-center text-center w-full my-auto py-4">
+                    {/* Frequency */}
+                    <h1 className="text-6xl sm:text-7xl font-black text-white tracking-tighter leading-none mb-1 drop-shadow-[0_4px_16px_rgba(0,0,0,0.7)]">
+                        {frequency}
+                    </h1>
+
+                    <p className="text-base sm:text-lg text-white/85 font-medium mb-2.5">
+                        Now Playing
+                    </p>
+
+                    {/* Track Badge Pill */}
+                    <div className="inline-flex items-center rounded-full bg-white/10 backdrop-blur-md border border-white/15 px-4 py-1.5 text-xs sm:text-sm font-medium text-white shadow-lg mb-6 max-w-[85vw] truncate">
+                        {displayTrackTitle}
+                    </div>
+
+                    {/* Player Capsule */}
+                    <div className="w-full max-w-sm rounded-full bg-black/45 backdrop-blur-xl border border-white/15 p-2.5 pr-5 flex items-center gap-3 shadow-2xl mx-auto">
+                        <button
+                            type="button"
+                            onClick={togglePlay}
+                            disabled={isOffline}
+                            aria-label={isPlaying ? "Pause" : "Play"}
+                            className="w-13 h-13 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-50"
+                        >
+                            {isOffline ? (
+                                <AlertTriangle className="w-5 h-5 text-destructive" />
+                            ) : isBuffering ? (
+                                <Loader variant="spinner" size={22} className="text-black" />
+                            ) : isPlaying ? (
+                                <Pause className="w-5 h-5 fill-black text-black" />
+                            ) : (
+                                <Play className="w-5 h-5 fill-black text-black ml-0.5" />
+                            )}
+                        </button>
+
+                        {/* Soundwave Bars */}
+                        <div className="flex items-center justify-center space-x-1 h-8 px-1 flex-1">
+                            {Array.from({ length: 22 }).map((_, i) => (
+                                <div
+                                    key={`mobile-bar-${i}`}
+                                    ref={el => barsMobileRef.current[i] = el}
+                                    className="w-1 rounded-full bg-white transition-all duration-75"
+                                    style={{ height: '20%' }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Mobile Volume Capsule */}
+                    <div className="flex items-center justify-center mt-3.5 mb-7">
+                        <div
+                            onClick={handleVolumeInteraction}
+                            onTouchMove={handleVolumeInteraction}
+                            className="w-44 h-6.5 rounded-full bg-black/50 backdrop-blur-md border border-white/15 relative overflow-hidden cursor-pointer flex items-center p-0.5"
+                        >
+                            <div
+                                className="h-full bg-white rounded-full transition-all duration-75 ease-out flex items-center px-1.5 min-w-7 justify-start"
+                                style={{ width: `${Math.max(18, effectiveVolumePercent)}%` }}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+                                    className="text-black"
+                                >
+                                    {isMuted || volume === 0 ? (
+                                        <VolumeX className="w-3 h-3" />
+                                    ) : (
+                                        <Volume2 className="w-3 h-3" />
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Coming Up Section */}
+                    <div className="w-full max-w-sm mx-auto text-left">
+                        <h2 className="text-2xl font-bold text-white tracking-tight mb-3 pl-1">
+                            Coming Up
+                        </h2>
+                        <div className="flex flex-col space-y-2.5 w-full">
+                            {upcomingShows.map((item) => (
+                                <div
+                                    key={item.id}
+                                    className="w-full rounded-full bg-white/10 backdrop-blur-md border border-white/15 px-4 sm:px-5 py-3 flex items-center justify-between text-white shadow-md"
+                                >
+                                    <div className="flex items-center space-x-2.5 min-w-0 mr-2">
+                                        <span className="font-mono text-white/75 font-bold text-xs sm:text-sm shrink-0">
+                                            {item.number || '01'}
+                                        </span>
+                                        <span className="font-bold text-xs sm:text-sm text-white truncate">
+                                            {item.title}
+                                        </span>
+                                    </div>
+                                    <span className="text-white/60 font-mono text-[11px] sm:text-xs shrink-0 tabular-nums">
+                                        {item.time}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </main>
+
+                {/* ========================================================================= */}
+                {/* FOOTER */}
+                {/* ========================================================================= */}
+                <footer className="pt-4 pb-2 w-full flex items-center justify-center text-center">
+                    <p className="text-[9px] sm:text-[10px] font-bold text-white/70 uppercase tracking-[0.25em] flex items-center justify-center space-x-1.5">
+                        <span>MADE WITH</span>
+                        <span className="text-emerald-400">💚</span>
+                        <span>BY ISIPATHANA COLLEGE MEDIA UNIT</span>
+                    </p>
+                </footer>
+
+            </div>
         </div>
-
-        {/* Frequency Display */}
-        <div className="flex flex-col items-center justify-center my-2 sm:my-3 shrink-0">
-          <div className="text-6xl sm:text-7xl font-bold font-heading text-foreground tracking-tighter drop-shadow-md">
-             102.5
-          </div>
-          {currentTrack ? (
-              <div className="mt-3 justify-center flex items-center space-x-2 bg-background/50 backdrop-blur-sm rounded-full px-2.5 py-1 border border-border/10 max-w-[75%] shadow-sm">
-                 {currentTrack.cover && <img src={currentTrack.cover} alt="Cover" className="w-5 h-5 rounded-full object-cover shadow-sm shrink-0" />}
-                 <marquee key={`${currentTrack.title}-${currentTrack.artist}`} behavior="scroll" direction="left" scrollamount="5">
-                   <span className="flex items-center text-xs font-body text-muted-foreground uppercase tracking-widest">
-                     {currentTrack.artist ? `${currentTrack.artist} - ${currentTrack.title}` : currentTrack.title}
-                   </span>
-                 </marquee>
-              </div>
-          ) : (
-              <Heart className="w-5 h-5 text-primary mt-3 drop-shadow-[0_0_12px_rgba(var(--primary),0.6)] cursor-pointer hover:scale-110 transition-transform"/>
-          )}
-        </div>
-
-        {/* Waveform Visualizer */}
-        <div className="flex items-end justify-center px-6 my-2 sm:my-3 h-16 sm:h-20 opacity-90 shrink-0">
-           <div className="w-full h-full flex items-end justify-center space-x-1.5 pb-2 border-b border-white/5 relative">
-              {/* Fake gradient mask for bottom fade */}
-              <div className="absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-bg-card/50 to-transparent z-10 pointer-events-none"/>
-              {Array.from({ length: 24 }).map((_, i) => (
-                  <div 
-                    key={i} 
-                    ref={el => barsRef.current[i] = el}
-                    className={`w-2 sm:w-2.5 rounded-t-full bg-linear-to-t from-transparent via-primary/60 to-primary drop-shadow-[0_0_6px_rgba(var(--primary),0.4)] ${isPlaying ? 'transition-none' : 'opacity-40 transition-all duration-500 ease-out'}`} 
-                    style={{ height: '12px' }}
-                  />
-              ))}
-           </div>
-        </div>
-
-        {/* Large Tuning Dial / Play Control */}
-        <div className="my-1.5 sm:my-2 flex justify-center relative shrink-0">
-           {/* Background dial track */}
-           <div className="w-56 h-56 sm:w-60 sm:h-60 rounded-full border-8 sm:border-10 border-background/80 flex items-center justify-center relative shadow-(--shadow-ultimate) overflow-hidden">
-              {/* Dial markers */}
-              <div className="absolute inset-0 rounded-full border border-border/10 pointer-events-none" style={{
-            background: 'repeating-conic-gradient(from 0deg, transparent 0deg 10deg, rgba(255,255,255,0.03) 10deg 11deg)'
-        }}/>
-              
-              {/* Center Play Button */}
-              <Button onClick={togglePlay} disabled={!isBroadcasting || isOffline} variant="ghost" className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full transition-all duration-700 ease-out flex items-center justify-center z-20 relative overflow-hidden ${(!isBroadcasting || isOffline) ? 'bg-background text-muted-foreground opacity-80' : 'bg-background text-foreground'} ${isPlaying ? 'shadow-[0_0_40px_rgba(var(--primary),0.25),6px_6px_14px_rgba(0,0,0,0.6),-3px_-3px_10px_rgba(255,255,255,0.02)]' : 'shadow-[6px_6px_16px_rgba(0,0,0,0.6),-3px_-3px_10px_rgba(255,255,255,0.03)] hover:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-2px_-2px_5px_rgba(255,255,255,0.02)]'}`}>
-                 <AnimatePresence>
-                 {isOffline ? (
-                    <motion.div key="offline" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex flex-col items-center justify-center space-y-1">
-                       <AlertTriangle className="w-5 h-5 text-destructive opacity-80" />
-                       <span className="text-[9px] font-bold text-destructive uppercase tracking-widest leading-none mt-1">Offline</span>
-                    </motion.div>
-                 ) : isBuffering ? (
-                    <motion.div key="buffering" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex items-center justify-center">
-                       <Loader variant="spinner" size={30} className="text-primary drop-shadow-[0_0_12px_rgba(var(--primary),0.6)]" />
-                    </motion.div>
-                 ) : isPlaying ? (
-                    <motion.div key="pause" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex items-center justify-center">
-                       <Pause className="w-9 h-9 sm:w-10 sm:h-10 text-primary drop-shadow-[0_0_12px_rgba(var(--primary),0.6)]"/>
-                    </motion.div>
-                 ) : (
-                    <motion.div key="play" initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="absolute inset-0 flex items-center justify-center pl-1">
-                       <Play className="w-9 h-9 sm:w-10 sm:h-10 text-foreground opacity-80 hover:opacity-100 transition-opacity"/>
-                    </motion.div>
-                 )}
-                 </AnimatePresence>
-              </Button>
-
-              {/* Value indicators */}
-              <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[3.5px] border-l-transparent border-r-[3.5px] border-r-transparent border-t-[5px] sm:border-t-6 border-t-primary drop-shadow-[0_0_6px_rgba(var(--primary),0.8)]"/>
-
-              {/* Offline Overlay */}
-              {!isBroadcasting && (
-                  <div className="absolute inset-0 bg-background/80 backdrop-blur-md z-30 flex flex-col items-center justify-center transition-all duration-1000 ease-in-out opacity-100 p-4">
-                      <div className="relative flex items-center justify-center mb-3">
-                          <div className="absolute w-10 h-10 bg-destructive/20 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
-                          <Radio className="w-5 h-5 text-destructive opacity-80 z-10" />
-                      </div>
-                      <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold text-center leading-relaxed">
-                          FM Vibhavi is offline. We'll be back soon!
-                      </span>
-                  </div>
-              )}
-           </div>
-        </div>
-
-        {/* Volume Control Knob Module */}
-        <div className="w-full flex justify-center items-center my-1.5 sm:my-1 shrink-0">
-           <VolumeKnob />
-        </div>
-
-        {/* Footer */}
-        <div className="pt-2 pb-1 w-full flex flex-col items-center justify-center opacity-50 hover:opacity-100 transition-opacity shrink-0">
-            <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-widest flex items-center space-x-1.5">
-                <span>Made with</span>
-                <Heart className="w-3 h-3 text-destructive inline-block fill-destructive" />
-                <span>by</span>
-            </p>
-            <p className="text-[10px] font-bold text-foreground mt-0.5 uppercase tracking-widest">
-                Isipathana College Media Unit
-            </p>
-        </div>
-
-      </div>
-    </div>);
+    );
 }

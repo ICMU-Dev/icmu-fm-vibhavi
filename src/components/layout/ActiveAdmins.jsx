@@ -62,11 +62,21 @@ export const ActiveAdmins = ({ user, isMobile = false }) => {
     return !isSelf;
   });
 
-  if (otherAdmins.length === 0) return null;
+  const targetAdmins = otherAdmins.length > 0 
+    ? otherAdmins 
+    : (user ? [{
+        id: user.id || 'self',
+        indexNumber: user.index_number || user.indexNumber,
+        name: user.full_name || user.name || 'Admin',
+        role: user.role || 'Broadcaster',
+        avatarUrl: user.avatar_url || user.avatarUrl
+      }] : []);
+
+  if (targetAdmins.length === 0) return null;
 
   const maxAvatars = 3;
-  const displayAdmins = otherAdmins.slice(0, maxAvatars);
-  const remaining = otherAdmins.length - displayAdmins.length;
+  const displayAdmins = targetAdmins.slice(0, maxAvatars);
+  const remaining = targetAdmins.length - displayAdmins.length;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -74,9 +84,9 @@ export const ActiveAdmins = ({ user, isMobile = false }) => {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 group transition-all duration-200 focus:outline-none p-1 rounded-full hover:bg-card/40 active:scale-95"
-        title="View Other Active Admins"
-        aria-label="View Other Active Admins"
+        className="flex items-center gap-2 group transition-all duration-200 focus:outline-none p-1 rounded-full hover:bg-card/40 active:scale-95 cursor-pointer"
+        title="View Active Admins"
+        aria-label="View Active Admins"
       >
         <div className="flex -space-x-2">
           {displayAdmins.map((admin, idx) => {
@@ -84,18 +94,18 @@ export const ActiveAdmins = ({ user, isMobile = false }) => {
             return (
               <div
                 key={admin.id || admin.indexNumber || idx}
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-card border-2 border-background flex items-center justify-center text-[10px] font-bold text-foreground relative group-hover:border-primary/40 transition-colors shadow-sm overflow-hidden"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 border-2 border-black/80 flex items-center justify-center text-[10px] font-bold text-white relative group-hover:border-primary/40 transition-colors shadow-sm overflow-hidden"
                 style={{ zIndex: 10 - idx }}
               >
                 <SafeAvatar src={pic} name={admin.name} />
-                {/* Live green dot */}
-                <div className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border border-background ring-1 ring-emerald-500/40 pointer-events-none" />
+                {/* Live primary green dot */}
+                <div className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-primary border border-black ring-1 ring-primary/40 pointer-events-none" />
               </div>
             );
           })}
           {remaining > 0 && (
             <div
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted border-2 border-background flex items-center justify-center text-[9px] font-bold text-muted-foreground shadow-sm"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/10 border-2 border-black/80 flex items-center justify-center text-[9px] font-bold text-white/60 shadow-sm"
               style={{ zIndex: 10 - maxAvatars }}
             >
               +{remaining}
@@ -107,41 +117,41 @@ export const ActiveAdmins = ({ user, isMobile = false }) => {
       {/* Dropdown Menu */}
       {isOpen && (
         <div
-          className={`absolute z-100 py-2 w-64 rounded-2xl border border-border/40 bg-card/95 backdrop-blur-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150 ${
+          className={`absolute z-[60] py-2 w-64 rounded-2xl border border-white/15 bg-black/80 backdrop-blur-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150 ${
             isMobile
               ? 'right-0 top-full mt-2'
               : 'right-0 top-full mt-2 sm:right-0 sm:top-full'
           }`}
         >
-          <div className="px-3.5 pb-2 mb-1 border-b border-border/30 flex items-center justify-between">
+          <div className="px-3.5 pb-2 mb-1 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Users className="w-3.5 h-3.5 text-primary" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Active Admins ({otherAdmins.length})
+              <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                Active Admins ({targetAdmins.length})
               </span>
             </div>
           </div>
 
           <div className="max-h-60 overflow-y-auto no-scrollbar px-1.5 space-y-1">
-            {otherAdmins.map((admin) => {
+            {targetAdmins.map((admin) => {
               const pic = admin.avatarUrl || admin.avatar_url;
 
               return (
                 <div
                   key={admin.id || admin.indexNumber || admin.name}
-                  className="flex items-center justify-between gap-2.5 px-2 py-2 rounded-xl hover:bg-muted/40 transition-colors"
+                  className="flex items-center justify-between gap-2.5 px-2 py-2 rounded-xl hover:bg-white/10 transition-colors"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-7 h-7 rounded-full bg-card border border-border/40 flex items-center justify-center text-[10px] font-bold text-foreground shrink-0 relative overflow-hidden">
+                    <div className="w-7 h-7 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-[10px] font-bold text-white shrink-0 relative overflow-hidden">
                       <SafeAvatar src={pic} name={admin.name} />
-                      <div className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-background pointer-events-none" />
+                      <div className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-primary ring-1 ring-black pointer-events-none" />
                     </div>
 
                     <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-semibold text-foreground truncate">
+                      <span className="text-xs font-semibold text-white truncate">
                         {admin.name || 'Admin'}
                       </span>
-                      <span className="text-[10px] text-muted-foreground truncate">
+                      <span className="text-[10px] text-white/50 truncate">
                         {getRoleLabel(admin.role)}
                       </span>
                     </div>

@@ -15,7 +15,7 @@ const CHROME_SHIMMER = {
     duration: 2.4,
     ease: EASE_IN_OUT,
 };
-export const MetallicButton = forwardRef(function MetallicButton({ size = "md", paused = false, className, children, onHoverStart, onHoverEnd, ...rest }, ref) {
+export const MetallicButton = forwardRef(function MetallicButton({ size = "md", paused = false, className, innerClassName, children, onHoverStart, onHoverEnd, ...rest }, ref) {
     const reduce = useReducedMotion();
     const still = paused || Boolean(reduce);
     const [hovered, setHovered] = useState(false);
@@ -30,9 +30,9 @@ export const MetallicButton = forwardRef(function MetallicButton({ size = "md", 
 
       <motion.span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-[-58%] z-[1] w-[52%] -skew-x-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.5)_48%,transparent)] opacity-50 blur-[3px] mix-blend-screen" animate={still ? undefined : { x: hovered ? "310%" : "0%" }} transition={still ? undefined : CHROME_SHIMMER}/>
 
-      <span aria-hidden="true" className="pointer-events-none absolute inset-[2px] z-[2] rounded-[inherit] bg-background transition-colors group-hover:bg-muted/40"/>
+      <span aria-hidden="true" className={cn("pointer-events-none absolute inset-[3px] z-[2] rounded-[inherit] bg-gradient-to-b from-[#141416] to-[#0a0a0c] transition-colors group-hover:from-[#1c1c20] group-hover:to-[#101014]", innerClassName)}/>
 
-      <span aria-hidden="true" className="pointer-events-none absolute inset-[2px] z-[3] rounded-[inherit] shadow-[inset_0_1px_0_rgba(255,255,255,0.28),inset_0_-1px_0_rgba(0,0,0,0.16)]"/>
+      <span aria-hidden="true" className="pointer-events-none absolute inset-[3px] z-[3] rounded-[inherit] shadow-[inset_0_1px_1px_rgba(255,255,255,0.35),inset_0_-1px_2px_rgba(0,0,0,0.6)]"/>
 
       <span className="relative z-10 inline-flex items-center justify-center gap-2">
         {children}

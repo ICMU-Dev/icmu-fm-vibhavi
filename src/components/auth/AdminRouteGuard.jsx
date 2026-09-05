@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { verifyOperatorAccess, getRoleLabel } from '../../utils/auth';
 import { AdminDashboard } from '../../pages/AdminDashboard';
-import { NotFoundPage } from '../../pages/NotFoundPage';
+import { NotFoundPage, ForbiddenPage } from '../../pages/NotFoundPage';
 import { Loader } from '../motion/loader';
 import { ShieldAlert, ArrowLeft, Radio, ExternalLink, RefreshCw } from 'lucide-react';
 import { AnimatedBadge } from '../motion/animated-badge';
 import { ICMU_PORTAL_URL } from '../../utils/constants';
+import { AtmosphereBackground } from '../layout/AtmosphereBackground';
 
 export function AdminRouteGuard() {
   const { indexNumber } = useParams();
@@ -70,82 +71,120 @@ export function AdminRouteGuard() {
 
   if (checking) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-dvh bg-background text-foreground space-y-4 px-4 text-center">
-        <div className="relative flex items-center justify-center">
-          <div className="w-20 h-20 rounded-full border border-primary/20 animate-ping absolute"></div>
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center border border-primary/30">
-            <Radio className="w-7 h-7 text-primary animate-pulse" />
+      <div className="min-h-dvh w-full font-sans relative overflow-x-hidden flex flex-col justify-between transition-colors duration-1000 bg-[#070b08] text-white select-none">
+        {/* Visible Blurred Dynamic Campus Background Layer with campus_bg fallback */}
+        <AtmosphereBackground variant="subdued" opacity={0.82} blur={true} />
+
+        {/* Top Navigation Bar with Dual Crests & Brand Identity (Floating without Header Island) */}
+        <header className="w-full shrink-0 z-40 pt-4 pb-2 px-4 sm:px-8">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            {/* Left: Dual Crests + Title */}
+            <Link to="/" className="flex items-center space-x-3 group">
+              <div className="flex items-center space-x-2 shrink-0">
+                <img 
+                  src="/assets/isipathana_crest.png" 
+                  alt="Isipathana College" 
+                  className="h-8 sm:h-10 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)] group-hover:scale-105 transition-transform"
+                />
+                <img 
+                  src="/apple-touch-icon.png" 
+                  alt="Media Unit" 
+                  className="h-8 sm:h-10 w-auto object-contain brightness-0 invert drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)] group-hover:scale-105 transition-transform"
+                />
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.18em] text-white uppercase leading-tight">
+                  ISIPATHANA COLLEGE
+                </span>
+                <span className="text-[8px] sm:text-[9px] font-medium tracking-[0.25em] text-white/70 uppercase leading-tight">
+                  MEDIA UNIT
+                </span>
+              </div>
+            </Link>
+
+            {/* Center: Vibhavi Calligraphy Logo */}
+            <div className="hidden md:flex items-center justify-center">
+              <Link to="/">
+                <img 
+                  src="/assets/vibhavi_logo.png" 
+                  alt="FM Vibhavi" 
+                  className="h-8 sm:h-9 w-auto object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)] hover:opacity-90 transition-opacity"
+                />
+              </Link>
+            </div>
+
+            {/* Right: Quick Action to Tune into Public Stream */}
+            <div className="flex items-center gap-3">
+              <Link 
+                to="/"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold uppercase tracking-wider text-white transition-all shadow-sm active:scale-95"
+              >
+                <Radio className="w-3.5 h-3.5 text-primary" />
+                <span className="hidden sm:inline">Live Radio</span>
+                <span className="text-primary font-bold">102.5</span>
+              </Link>
+            </div>
           </div>
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-lg font-heading font-bold uppercase tracking-widest text-foreground">
-            Verifying Operator Clearance
-          </h2>
-          <p className="text-xs text-muted-foreground font-mono">
-            Auditing credentials with central ICMU database...
+        </header>
+
+        {/* Floating Center Stage (Matches media_1788566780008.png) */}
+        <main className="w-full flex-1 flex flex-col items-center justify-center my-auto px-4 py-8 sm:py-12 relative z-10 text-center select-none">
+          {/* Title & Subtitle */}
+          <div className="flex flex-col items-center space-y-1.5 mb-8">
+            <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-white/10 border border-white/15 text-xs uppercase tracking-widest mb-2 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-primary font-bold">Security Clearance</span>
+            </div>
+
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight drop-shadow-md">
+              Auditing Operator
+            </h1>
+            <p className="text-xs sm:text-sm text-white/75 font-medium tracking-wide max-w-md mx-auto">
+              Verifying credentials with central ICMU database...
+            </p>
+          </div>
+
+          {/* Pill Capsule Info with Loader */}
+          <div className="w-full max-w-xl flex flex-col items-center space-y-2 mb-5">
+            <div className="w-full rounded-full bg-black/60 backdrop-blur-2xl border border-white/15 px-6 sm:px-8 py-3.5 sm:py-4 flex items-center justify-center gap-3 text-center text-xs sm:text-sm text-white/85 font-medium shadow-2xl">
+              <Loader variant="spinner" size={18} className="text-primary shrink-0" />
+              <span>Connecting to secure station directory...</span>
+            </div>
+          </div>
+
+          {/* Floating Secondary Action Pill Button Below */}
+          <div className="mt-10 sm:mt-12 flex flex-wrap items-center justify-center gap-3">
+            <Link to="/">
+              <button
+                type="button"
+                className="inline-flex items-center space-x-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 backdrop-blur-md px-6 py-2.5 text-xs font-semibold text-white/90 shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                <Radio className="w-3.5 h-3.5 text-primary" />
+                <span>Cancel & Return to Live Radio</span>
+              </button>
+            </Link>
+          </div>
+        </main>
+
+        <footer className="pt-4 pb-4 w-full flex items-center justify-center text-center z-10">
+          <p className="text-[9px] sm:text-[10px] font-bold text-white/50 uppercase tracking-[0.25em] flex items-center justify-center space-x-1.5">
+            <span>MADE WITH</span>
+            <span className="text-primary">💚</span>
+            <span>BY ISIPATHANA COLLEGE MEDIA UNIT</span>
           </p>
-        </div>
-        <Loader variant="spinner" size={28} className="text-primary mt-2" />
+        </footer>
       </div>
     );
   }
 
   if (!authorized) {
-    const portalUrl = ICMU_PORTAL_URL;
-
     return (
-      <div className="min-h-dvh w-full bg-background flex flex-col items-center justify-center px-4 py-8 relative overflow-hidden font-sans text-foreground">
-        {/* Ambient Glow */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-destructive/10 rounded-full blur-[100px] pointer-events-none -translate-y-1/2 translate-x-1/2" />
-
-        <div className="w-full max-w-md bg-card/60 border border-destructive/30 rounded-3xl p-8 sm:p-10 shadow-(--shadow-ultimate) backdrop-blur-md flex flex-col items-center text-center space-y-6 relative z-10">
-          <div className="w-16 h-16 rounded-2xl bg-destructive/10 border border-destructive/30 flex items-center justify-center text-destructive shadow-[0_0_30px_rgba(239,68,68,0.25)]">
-            <ShieldAlert className="w-8 h-8 animate-pulse" />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-destructive">
-                Security Protocol 403
-              </span>
-              {errorDetails.detectedRole && (
-                <AnimatedBadge status="danger" size="sm" className="text-[9px] uppercase font-mono">
-                  {getRoleLabel(errorDetails.detectedRole)}
-                </AnimatedBadge>
-              )}
-            </div>
-            <h1 className="text-2xl font-heading font-bold uppercase tracking-wider text-foreground">
-              Clearance Restricted
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed pt-1">
-              {errorDetails.reason}
-            </p>
-          </div>
-
-          <div className="w-full border-t border-border/20 pt-4 flex flex-col gap-2.5">
-            <a
-              href={`${portalUrl}/${indexNumber || ''}`}
-              className="w-full py-3 px-4 rounded-xl bg-primary text-primary-foreground font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-primary/90 transition-all active:scale-95 shadow-md">
-              <span>Sign In via ICMU Portal</span>
-              <ExternalLink className="w-4 h-4" />
-            </a>
-
-            <button
-              onClick={checkClearance}
-              className="w-full py-3 px-4 rounded-xl bg-muted/40 border border-border/40 text-foreground font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-muted/70 transition-all active:scale-95">
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Retry Clearance Audit</span>
-            </button>
-
-            <Link
-              to="/"
-              className="w-full py-2 text-[11px] text-muted-foreground hover:text-foreground font-medium uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 pt-1">
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Listen to Public Stream</span>
-            </Link>
-          </div>
-        </div>
-      </div>
+      <ForbiddenPage 
+        reason={errorDetails.reason} 
+        detectedRole={errorDetails.detectedRole} 
+        indexNumber={indexNumber} 
+        onRetry={checkClearance} 
+      />
     );
   }
 

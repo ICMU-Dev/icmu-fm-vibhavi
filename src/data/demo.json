@@ -1,0 +1,33 @@
+{
+  "station": {
+    "name": "FM Vibhavi",
+    "frequency": "102.5",
+    "tagline": "The Voice of Green",
+    "credit": "MADE WITH 💚 BY ISIPATHANA COLLEGE MEDIA UNIT"
+  },
+  "nowPlaying": {
+    "title": "Adare Karanna Igena Gann..",
+    "artist": "Vibhavi Live",
+    "status": "Now Playing"
+  },
+  "upcoming": [
+    {
+      "id": "1",
+      "number": "01",
+      "title": "පිරිත් සජ්ඣායනය",
+      "time": "12.00AM - 4.00 AM"
+    },
+    {
+      "id": "2",
+      "number": "01",
+      "title": "Morning Eve",
+      "time": "12.00AM - 4.00 AM"
+    },
+    {
+      "id": "3",
+      "number": "01",
+      "title": "Isipathana Coll...",
+      "time": "12.00AM - 4.00 AM"
+    }
+  ]
+}

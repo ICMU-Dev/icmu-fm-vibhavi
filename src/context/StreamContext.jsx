@@ -308,11 +308,27 @@ const extractRadioId = (url) => {
                         const listenerRes = await fetch(`https://api.radioking.io/widget/radio/${radioId}/listener?${cacheBuster}`, { signal });
                         if (listenerRes.ok) {
                             const listenerData = await listenerRes.json();
-                            if (typeof listenerData.listener_count === 'number') {
-                                setListenerCount(listenerData.listener_count);
+                            // Handle multiple response shapes from RadioKing API
+                            const count = typeof listenerData === 'number'
+                                ? listenerData
+                                : (listenerData.listener_count ?? listenerData.listeners ?? listenerData.total ?? listenerData.count ?? null);
+                            if (typeof count === 'number' && count >= 0) {
+                                setListenerCount(count);
                             }
                         }
-                    } catch (_) {}
+                    } catch (_) {
+                        // Fallback: try /status endpoint which sometimes has listener info
+                        try {
+                            const statusRes = await fetch(`https://api.radioking.io/widget/radio/${radioId}/status?${cacheBuster}`, { signal });
+                            if (statusRes.ok) {
+                                const statusData = await statusRes.json();
+                                const count = statusData.listener_count ?? statusData.listeners ?? statusData.total ?? null;
+                                if (typeof count === 'number' && count >= 0) {
+                                    setListenerCount(count);
+                                }
+                            }
+                        } catch (_) {}
+                    }
                 }
             } catch (e) {
                 if (e.name !== 'AbortError') {

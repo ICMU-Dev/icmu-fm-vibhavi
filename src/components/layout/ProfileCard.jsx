@@ -63,26 +63,26 @@ export function ProfileCard({ operator }) {
         <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-card border-2 border-primary/40 flex items-center justify-center text-xs font-bold text-foreground shrink-0 relative overflow-hidden shadow-sm group-hover:border-primary group-hover:ring-2 group-hover:ring-primary/20 group-hover:shadow-[0_0_12px_rgba(var(--primary),0.3)] transition-all">
           <SafeAvatar src={avatarUrl} name={fullName} />
           {/* Active online indicator */}
-          <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-background pointer-events-none" />
+          <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-background pointer-events-none" />
         </div>
       </button>
 
       {/* Popover Profile Card */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2.5 w-72 sm:w-80 rounded-3xl border border-border/40 bg-card/95 backdrop-blur-2xl shadow-2xl p-4 sm:p-5 z-100 animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 top-full mt-2.5 w-72 sm:w-80 rounded-3xl border border-white/15 bg-black/80 backdrop-blur-2xl shadow-2xl p-4 sm:p-5 z-60 animate-in fade-in zoom-in-95 duration-150">
           {/* User Header */}
-          <div className="flex items-center gap-3.5 pb-4 border-b border-border/20">
-            <div className="w-12 h-12 rounded-full bg-primary/10 border-2 border-primary/40 flex items-center justify-center text-base font-bold text-foreground shrink-0 relative overflow-hidden shadow-inner">
+          <div className="flex items-center gap-3.5 pb-4 border-b border-white/10">
+            <div className="w-12 h-12 rounded-full bg-primary/10 border-2 border-primary/40 flex items-center justify-center text-base font-bold text-white shrink-0 relative overflow-hidden shadow-inner">
               <SafeAvatar src={avatarUrl} name={fullName} />
-              <div className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-background pointer-events-none" />
+              <div className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-primary ring-2 ring-black pointer-events-none" />
             </div>
 
             <div className="flex flex-col min-w-0">
-              <span className="text-sm font-bold text-foreground truncate leading-snug">
+              <span className="text-sm font-bold text-white truncate leading-snug">
                 {fullName}
               </span>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="font-mono text-[11px] font-bold text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded border border-border/20">
+                <span className="text-[11px] font-bold text-white/60 bg-white/10 px-1.5 py-0.5 rounded border border-white/10">
                   {indexNumber}
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 truncate">
@@ -106,7 +106,7 @@ export function ProfileCard({ operator }) {
               <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </Button>
 
-            <p className="text-[10px] text-center text-muted-foreground/70 pt-1">
+            <p className="text-[10px] text-center text-white/40 pt-1">
               Connected via central ICMU SSO clearance
             </p>
           </div>
